@@ -1,0 +1,68 @@
+{
+	"name": "mybbbridge",
+	"displayName": "MyBBBridge",
+	"description": "VSCode extension to edit and create MyBB themes and templates.",
+	"version": "0.0.3",
+	"publisher": "LeMinaw",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/LeMinaw/MyBBBridge.git"
+	},
+	"engines": {
+		"vscode": "^1.41.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"preview": true,
+	"activationEvents": [
+		"workspaceContains:.vscode/mbbb.json",
+		"onCommand:extension.createConfig"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "extension.createConfig",
+				"title": "MyBBBridge: Create config file"
+			},
+			{
+				"command": "extension.loadTemplateSet",
+				"title": "MyBBBridge: Load MyBB template set from database"
+			},
+			{
+				"command": "extension.loadStyle",
+				"title": "MyBBBridge: Load MyBB style from database"
+			},
+			{
+				"command": "mybbbridge.logSampleMessage",
+				"title": "Log Sample Message to PHP"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"pretest": "npm run compile",
+		"test": "node ./out/test/runTest.js"
+	},
+	"devDependencies": {
+		"@types/glob": "^7.1.1",
+		"@types/mocha": "^5.2.7",
+		"@types/node": "^12.11.7",
+		"@types/vscode": "^1.41.0",
+		"glob": "^7.1.5",
+		"mocha": "^6.2.2",
+		"tslint": "^5.20.0",
+		"typescript": "^3.9.10",
+		"vscode-test": "^1.2.2"
+	},
+	"dependencies": {
+		"@types/mysql": "^2.15.8",
+		"@types/request-promise-native": "^1.0.17",
+		"mysql2": "^3.5.2",
+		"request": "^2.88.0",
+		"request-promise-native": "^1.0.8"
+	}
+}
