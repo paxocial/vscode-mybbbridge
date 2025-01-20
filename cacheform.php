@@ -1,4 +1,24 @@
 <?php
+/**
+ * cacheform.php
+ * ----------------
+ * This script provides a user interface for manually clearing and refreshing cached stylesheets in MyBB themes.
+ * It supplements the automated VSCode extension functionality, allowing manual intervention when necessary.
+ *
+ * Key Functionalities:
+ * - Displays a form to select themes and associated stylesheets.
+ * - Fetches stylesheets dynamically via AJAX based on the selected theme.
+ * - Refreshes the cache for selected stylesheets using MyBB's `cache_stylesheet` function.
+ * - Logs operations for debugging and transparency.
+ *
+ * User Interface:
+ * - Includes a responsive HTML form to select themes and stylesheets.
+ * - Allows users to clear cache for multiple stylesheets in one action.
+ *
+ * Error Handling:
+ * - Logs errors to `cacheform_errors.log` for debugging.
+ * - Provides user feedback via AJAX responses, displayed as success or error messages.
+ */
 // Include MyBB initialization file
 define('IN_MYBB', 1);
 require_once "./global.php";
