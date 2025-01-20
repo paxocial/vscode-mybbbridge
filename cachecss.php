@@ -1,38 +1,32 @@
 <?php
-// Set error logging
-ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/cachecss_errors.log');
-
-// Log received parameters
-error_log("[cachecss.php] Received POST parameters: " . json_encode($_POST));
-
-// Check if required parameters are present
-if (!isset($_POST['theme_name']) || !isset($_POST['stylesheet'])) {
-    error_log("[cachecss.php] Missing 'theme_name' or 'stylesheet' parameter.");
-    echo json_encode(['success' => false, 'message' => "Invalid parameters."]);
-    exit;
-}
-
-$theme_name = $_POST['theme_name'];
-$stylesheet = $_POST['stylesheet'];
-
-// Log the received parameters
-error_log("[cachecss.php] theme_name: $theme_name, stylesheet: $stylesheet");
-
-// Include MyBB initialization file
 define('IN_MYBB', 1);
 require_once "./global.php";
 
-// Define the MyBB root directory if not already defined
 if (!defined('MYBB_ROOT')) {
     define('MYBB_ROOT', dirname(__FILE__) . '/');
 }
 
-// Ensure the functions_themes.php file is included
 require_once MYBB_ROOT . "admin/inc/functions_themes.php";
 
-// Fetch the theme ID based on the theme name
-$query = $db->simple_select("themes", "tid", "name='{$db->escape_string($theme_name)}'");
+// Set error logging
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/cachecss_errors.log');
+
+header('Content-Type: application/json');
+
+// Get POST parameters
+$theme_name = $_POST['theme_name'] ?? '';
+$stylesheet = $_POST['stylesheet'] ?? '';
+
+error_log("[cachecss.php] Received request - theme_name: $theme_name, stylesheet: $stylesheet");
+
+if (empty($theme_name) || empty($stylesheet)) {
+    echo json_encode(['success' => false, 'message' => 'Missing theme_name or stylesheet parameter']);
+    exit;
+}
+
+// Get theme ID from name
+$query = $db->simple_select("themes", "tid", "name='" . $db->escape_string($theme_name) . "'");
 $theme = $db->fetch_array($query);
 
 if (!$theme) {
@@ -43,20 +37,33 @@ if (!$theme) {
 
 $tid = $theme['tid'];
 
+// Get stylesheet content
+$query = $db->simple_select(
+    "themestylesheets", 
+    "stylesheet", 
+    "tid='" . $tid . "' AND name='" . $db->escape_string($stylesheet) . "'"
+);
+$style = $db->fetch_array($query);
+
+if (!$style) {
+    error_log("[cachecss.php] Stylesheet not found: $stylesheet");
+    echo json_encode(['success' => false, 'message' => "Stylesheet not found: $stylesheet"]);
+    exit;
+}
+
 // Cache the stylesheet
 try {
-    $stylesheet_path = MYBB_ROOT . "cache/themes/theme{$tid}/{$stylesheet}";
-    if (file_exists($stylesheet_path)) {
-        $stylesheet_content = file_get_contents($stylesheet_path);
-        cache_stylesheet($tid, $stylesheet, $stylesheet_content);
-        error_log("[cachecss.php] Cached stylesheet: $stylesheet for theme ID: $tid");
-        echo json_encode(['success' => true, 'message' => "Cache refreshed for theme_name $theme_name and stylesheet: $stylesheet"]);
+    if (cache_stylesheet($tid, $stylesheet, $style['stylesheet'])) {
+        error_log("[cachecss.php] Successfully cached stylesheet: $stylesheet for theme: $theme_name");
+        echo json_encode([
+            'success' => true,
+            'message' => "Successfully cached stylesheet: $stylesheet for theme: $theme_name"
+        ]);
     } else {
-        error_log("[cachecss.php] Stylesheet not found: $stylesheet_path");
-        echo json_encode(['success' => false, 'message' => "Stylesheet not found: $stylesheet"]);
+        throw new Exception("Failed to cache stylesheet");
     }
 } catch (Exception $e) {
-    error_log("[cachecss.php] Error caching stylesheet: " . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => "Error caching stylesheet: " . $e->getMessage()]);
+    error_log("[cachecss.php] Error: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 }
 ?>

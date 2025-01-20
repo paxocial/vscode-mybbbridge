@@ -9,7 +9,16 @@ export async function loadTemplateSetCommand() {
     const config = await getConfig();
     const con = await getConnexion(config.database);
 
-    const templateSetName = await vscode.window.showInputBox({ placeHolder: 'Template set name (often ending with "Templates")' });
+    const templateSetName = await vscode.window.showInputBox({ 
+        placeHolder: 'Template set name (e.g. "Default Templates")',
+        validateInput: (value) => {
+            if (!value) {
+                return 'Template set name cannot be empty';
+            }
+            // Allow any non-empty string, including spaces
+            return null;
+        }
+    });
     if (templateSetName === undefined) {
         return;
     }
@@ -41,7 +50,16 @@ export async function loadStyleCommand() {
     const config = await getConfig();
     const con = await getConnexion(config.database);
 
-    const styleName = await vscode.window.showInputBox({ placeHolder: 'Style name' });
+    const styleName = await vscode.window.showInputBox({ 
+        placeHolder: 'Style name (e.g. "My Custom Style")',
+        validateInput: (value) => {
+            if (!value) {
+                return 'Style name cannot be empty';
+            }
+            // Allow any non-empty string, including spaces
+            return null;
+        }
+    });
     if (styleName === undefined) {
         return;
     }

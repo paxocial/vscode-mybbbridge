@@ -139,7 +139,7 @@ export class MyBBTemplateSet extends MyBBSet {
     }
 
     public async getElements(): Promise<any[]> {
-        const req = `SELECT title, template FROM ${this.getTable('templates')} WHERE sid = (SELECT sid FROM ${this.getTable('templatesets')} WHERE title=?)`;
+        const req = `SELECT title, template FROM ${this.getTable('templates')} WHERE sid = (SELECT sid FROM ${this.getTable('templatesets')} WHERE title = ?)`;
         logToPHP(`Loading templates for set: ${this.name}`);
         const templates = await this.query(req, [this.name]);
         vscode.window.showInformationMessage(`${templates.length} templates loaded successfully.`);
@@ -154,7 +154,7 @@ export class MyBBStyle extends MyBBSet {
     }
 
     public async getElements(): Promise<any[]> {
-        const req = `SELECT name, stylesheet FROM ${this.getTable('themestylesheets')} WHERE tid = (SELECT tid FROM ${this.getTable('themes')} WHERE name=?)`;
+        const req = `SELECT name, stylesheet FROM ${this.getTable('themestylesheets')} WHERE tid = (SELECT tid FROM ${this.getTable('themes')} WHERE name = ?)`;
         logToPHP(`Loading styles for set: ${this.name}`);
         const styles = await this.query(req, [this.name]);
         vscode.window.showInformationMessage(`${styles.length} stylesheets loaded successfully.`);
@@ -163,70 +163,101 @@ export class MyBBStyle extends MyBBSet {
     }
 
     public async saveElement(fileName: string, content: string, themeName: string): Promise<void> {
-        const table = this.getTable('themestylesheets');
-        const query = `UPDATE ${table} SET stylesheet = ?, lastmodified = ? WHERE name = ? AND tid = (SELECT tid FROM ${this.getTable('themes')} WHERE name = ?)`;
-
         try {
-            logToPHP(`Attempting to save stylesheet "${fileName}" with theme "${themeName}".`); // Logging to file first
-            const result = await this.query(query, [content, timestamp(), fileName, themeName]);
+            // First, verify the theme exists and get its ID
+            const themeQuery = `SELECT tid FROM ${this.getTable('themes')} WHERE name = ?`;
+            const themeResult = await this.query(themeQuery, [themeName]);
+            
+            if (!themeResult || themeResult.length === 0) {
+                throw new Error(`Theme "${themeName}" not found in database`);
+            }
+            
+            const tid = themeResult[0].tid;
+            const table = this.getTable('themestylesheets');
+            
+            // Check if the stylesheet exists for this specific theme
+            const checkQuery = `SELECT sid FROM ${table} WHERE tid = ? AND name = ?`;
+            const checkResult = await this.query(checkQuery, [tid, fileName]);
 
-            if (result.affectedRows === 0) {
-                const noRowsMessage = `Failed to save stylesheet: No matching rows found.`;
-                vscode.window.showErrorMessage(noRowsMessage);
-                logToPHP(noRowsMessage);
-            } else {
-                const successMessage = `Stylesheet "${fileName}" for theme "${themeName}" saved successfully.`;
+            if (checkResult.length === 0) {
+                // Stylesheet doesn't exist for this theme - create it
+                const insertQuery = `INSERT INTO ${table} 
+                    (tid, name, stylesheet, cachefile, lastmodified) 
+                    VALUES (?, ?, ?, ?, ?)`;
+                await this.query(insertQuery, [
+                    tid,
+                    fileName,
+                    content,
+                    fileName,
+                    timestamp()
+                ]);
+                
+                const successMessage = `Created new stylesheet "${fileName}" for theme "${themeName}"`;
                 vscode.window.showInformationMessage(successMessage);
                 logToPHP(successMessage);
-
-                // Call requestCacheRefresh to refresh the cache
-                await this.requestCacheRefresh(fileName, themeName);
+            } else {
+                // Update existing stylesheet for this specific theme
+                const updateQuery = `UPDATE ${table} 
+                    SET stylesheet = ?, lastmodified = ? 
+                    WHERE tid = ? AND name = ?`;
+                
+                await this.query(updateQuery, [content, timestamp(), tid, fileName]);
+                
+                const successMessage = `Updated stylesheet "${fileName}" for theme "${themeName}"`;
+                vscode.window.showInformationMessage(successMessage);
+                logToPHP(successMessage);
             }
+
+            // Always refresh the cache after update
+            await this.requestCacheRefresh(fileName, themeName);
+
         } catch (err) {
             const errorMessage = `Failed to save stylesheet "${fileName}": ${err instanceof Error ? err.message : String(err)}`;
             vscode.window.showErrorMessage(errorMessage);
             logToPHP(errorMessage);
+            throw err;
         }
     }
 
     public async requestCacheRefresh(name: string, themeName: string): Promise<void> {
         const config = await getConfig();
 
-        if (config.mybbUrl) {
-            const scriptUrl = urlJoin([config.mybbUrl, 'cachecss.php']);
-            logToPHP(`Preparing cache refresh request. URL: ${scriptUrl}, theme: "${themeName}", stylesheet: "${name}"`);
+        if (!config.mybbUrl) {
+            throw new Error("MyBB URL not configured");
+        }
+
+        const scriptUrl = urlJoin([config.mybbUrl, 'cachecss.php']);
+        logToPHP(`Preparing cache refresh request. URL: ${scriptUrl}, theme: "${themeName}", stylesheet: "${name}"`);
+
+        try {
+            const response = await request.post({
+                uri: scriptUrl,
+                form: {
+                    theme_name: themeName,
+                    stylesheet: name
+                },
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
 
             try {
-                const result = await this.query(
-                    `SELECT tid FROM ${this.getTable('themes')} WHERE name = ?`,
-                    [themeName]
-                );
-
-                if (result.length > 0) {
-                    const tid = result[0].tid;
-                    logToPHP(`Sending actual cache refresh request to cachecss.php with parameters - tid: ${tid}, name: ${name}`);
-
-                    const response = await request.post({
-                        uri: scriptUrl,
-                        form: { tid, name, content: '' } // Assuming content is not needed for cache refresh
-                    });
-
-                    logToPHP(`Cache refresh request response from server: ${response}`);
-                    vscode.window.showInformationMessage(`Cache refresh requested successfully for stylesheet "${name}".`);
+                const jsonResponse = JSON.parse(response);
+                if (jsonResponse.success) {
+                    logToPHP(`Cache refresh successful: ${jsonResponse.message}`);
+                    vscode.window.showInformationMessage(jsonResponse.message);
                 } else {
-                    const errorMsg = `Theme "${themeName}" not found in the database; cannot refresh cache.`;
-                    vscode.window.showErrorMessage(errorMsg);
-                    logToPHP(errorMsg);
+                    throw new Error(jsonResponse.message || 'Cache refresh failed');
                 }
-            } catch (err) {
-                const errorMessage = `Failed to request cache refresh for stylesheet "${name}": ${err instanceof Error ? err.message : String(err)}`;
-                vscode.window.showErrorMessage(errorMessage);
-                logToPHP(errorMessage);
+            } catch (parseError) {
+                logToPHP(`Raw server response: ${response}`);
+                throw new Error('Invalid response from cache refresh');
             }
-        } else {
-            const configErrorMsg = "MyBB URL is not configured for cache refresh.";
-            vscode.window.showErrorMessage(configErrorMsg);
-            logToPHP(configErrorMsg);
+        } catch (err) {
+            const errorMessage = `Cache refresh failed: ${err instanceof Error ? err.message : String(err)}`;
+            vscode.window.showErrorMessage(errorMessage);
+            logToPHP(errorMessage);
+            throw err;
         }
     }
 }

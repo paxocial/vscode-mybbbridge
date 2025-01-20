@@ -3,10 +3,10 @@
 	"displayName": "MyBBBridge",
 	"description": "VSCode extension to edit and create MyBB themes and templates.",
 	"version": "0.0.3",
-	"publisher": "LeMinaw",
+	"publisher": "Paxocial",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/LeMinaw/MyBBBridge.git"
+		"url": "https://github.com/paxocial/vscode-mybbbridge.git"
 	},
 	"engines": {
 		"vscode": "^1.41.0"

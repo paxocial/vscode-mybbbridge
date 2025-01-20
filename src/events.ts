@@ -28,9 +28,9 @@ export async function onSaveEvent(document: vscode.TextDocument) {
                 } else if (parent2Dir === 'styles' && ext === '.css') {
                     const style = new MyBBStyle(parent1Dir, con, config.database.prefix);
                     const fileName = path.basename(docPath);
-                    const themeName = "default"; // Replace this with dynamic retrieval if needed
-                    await style.saveElement(fileName, document.getText(), themeName);
-                    await style.requestCacheRefresh(fileName, themeName);  // Ensure cache refresh is called
+                    // Use the parent directory name as the theme name
+                    await style.saveElement(fileName, document.getText(), parent1Dir);
+                    await style.requestCacheRefresh(fileName, parent1Dir);  // Ensure cache refresh is called
                 }
             } catch (error) {
                 if (error instanceof Error) {
