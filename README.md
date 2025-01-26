@@ -1,26 +1,41 @@
 # MyBBBridge
 
-MyBBBridge is an extension aimed at making MyBB template and theme dev more convenant.
-
-**Warning: this software is pre-alpha. Make backups and use it at your own risk.**
+A powerful VSCode extension for MyBB theme and template development with Git integration support.
 
 ## Features
 
-* Download themes (`.css`) and templates (`.html`) files from database to disk.
+### Template Management
+* Download template sets with their full hierarchy:
+  - Organizes templates by prefix under `template_sets/<set_name>/<prefix>/`
+  - Supports global templates (sid = -2)
+  - Maintains template versioning
+  - Handles spaces in template set names
 
-* Save themes and templates to database when saved on disk.
+### Style Management
+* Manage theme stylesheets:
+  - Organized under `styles/<theme_name>/`
+  - Automatic cache refresh on save
+  - Creates new stylesheets if they don't exist
+  - Handles spaces in theme names
 
-* Automatically refresh templates cache files on save.
+### Git Integration
+* Full CI/CD workflow support:
+  - Automated template and style updates via GitHub Actions
+  - Preserves folder structure for deployment
+  - Handles both development and production branches
+  - Maintains cache consistency across deployments
 
-* Using Cacheform.css and git actions you can use this to have a CI/CD workflow for MyBB Development.
+### Cache Management
+* Intelligent cache handling:
+  - Automatic stylesheet cache refresh
+  - Theme-specific cache updates
+  - Manual cache management via cacheform.php
+  - Error logging and recovery
 
-## How to use
+## Setup
 
-### Configuration
-
-To operate, MyBBBridge *needs* a `.vscode/mbbb.json` file at your workspace root.
-
-You can create one using the command `MyBBBridge: Create config file`.
+### 1. Configuration
+Create a `.vscode/mbbb.json` file in your workspace root using the command `MyBBBridge: Create config file`.
 
 The default config file looks like this:
 
@@ -52,14 +67,14 @@ The default config file looks like this:
   each time a corresponding file is saved in VSCode.
   *Overrides existing database entries without confirmation!*
 
-### Cache refresh
+### 2. Cache refresh
 
 To be able to ask MyBB for template cache refresh, MyBBBridge requires you to upload
 the tiny `cacheform.php` php file of this repository to your web server, at the root of
 your MyBB directory. If you don't plan to use cache refresh, you can skip this step and
 set `mybbUrl` to `null` in your `mbbb.json` config file.
 
-### Commands
+### 3. Commands
 
 * `MyBBBridge: Create config file`: Create a new config file, allowing you to start
   using MyBBBridge.
@@ -72,7 +87,6 @@ set `mybbUrl` to `null` in your `mbbb.json` config file.
   of a given style to the `./styles/<style_name>/` folder.
   *Overrides existing files without confirmation!*
 
-MYBB THEME NAMES MAY CONTAIN NO SPACES, YOU MUST REPLACE THEM WITH - RENAME TEMPLATE SETS Theme-Name-Templates
 ## Release Notes
 
 ### 0.0.1-alpha
@@ -86,3 +100,11 @@ Alpha release with save features.
 ### 0.0.3-alpha
 
 Alpha release allowing to refresh MyBB stylesheet cache files.
+
+### 0.0.4-alpha
+
+Alpha release improving existing cache functionalities, and allowing a a CI/CD workflow with one additional script - not included in repo.
+
+### 1.0 - Pre-Release
+
+Sorted all templates into folders by prefix name, we adjusted the saving functionality so it will be able to read the new folder structure.  Added global templates.
