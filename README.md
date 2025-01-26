@@ -1,6 +1,6 @@
 # MyBBBridge
 
-A powerful VSCode extension for MyBB theme and template development with Git integration support.
+A powerful VSCode extension for MyBB theme and template development with Git integration support.  Originally created by Leminaw, I have overhauled this for my particular usecase.
 
 ## Features
 
