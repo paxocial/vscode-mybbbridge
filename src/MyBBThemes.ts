@@ -227,7 +227,7 @@ export class MyBBStyle extends MyBBSet {
         }
 
         const scriptUrl = urlJoin([config.mybbUrl, 'cachecss.php']);
-        logToPHP(`Preparing cache refresh request. URL: ${scriptUrl}, theme: "${themeName}", stylesheet: "${name}"`);
+        logToPHP(`Requesting cache refresh for ${name} in theme ${themeName}`);
 
         try {
             const response = await request.post({
@@ -237,22 +237,26 @@ export class MyBBStyle extends MyBBSet {
                     stylesheet: name
                 },
                 headers: {
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/x-www-form-urlencoded'
                 }
             });
 
+            let jsonResponse;
             try {
-                const jsonResponse = JSON.parse(response);
-                if (jsonResponse.success) {
-                    logToPHP(`Cache refresh successful: ${jsonResponse.message}`);
-                    vscode.window.showInformationMessage(jsonResponse.message);
-                } else {
-                    throw new Error(jsonResponse.message || 'Cache refresh failed');
-                }
+                jsonResponse = JSON.parse(response);
+                logToPHP(`Cache refresh response: ${JSON.stringify(jsonResponse)}`);
             } catch (parseError) {
-                logToPHP(`Raw server response: ${response}`);
-                throw new Error('Invalid response from cache refresh');
+                logToPHP(`Raw response: ${response}`);
+                throw new Error(`Invalid JSON response: ${response}`);
             }
+
+            if (!jsonResponse.success) {
+                throw new Error(jsonResponse.message || 'Unknown cache refresh error');
+            }
+
+            vscode.window.showInformationMessage(jsonResponse.message);
+
         } catch (err) {
             const errorMessage = `Cache refresh failed: ${err instanceof Error ? err.message : String(err)}`;
             vscode.window.showErrorMessage(errorMessage);
