@@ -2,7 +2,7 @@
 	"name": "mybbbridge",
 	"displayName": "MyBBBridge",
 	"description": "VSCode extension to edit and create MyBB themes and templates.",
-	"version": "0.0.4",
+	"version": "1.0.0",
 	"publisher": "Paxocial",
 	"repository": {
 		"type": "git",
