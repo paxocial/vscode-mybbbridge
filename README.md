@@ -1,29 +1,56 @@
 # MyBBBridge
 
-MyBBBridge is an extension aimed at making MyBB template and theme dev more convenant.
+A comprehensive VSCode extension for MyBB theme and template development, featuring Git integration and automated cache management. Originally created by Leminaw, extensively enhanced with modern development workflows.
 
-**Warning: this software is pre-alpha. Make backups and use it at your own risk.**
+## Key Features
 
-## Features
+### Template Management
+* Smart Template Organization
+  - Auto-sorts templates into prefix-based folders (`template_sets/<set_name>/<prefix>/`)
+  - Full support for global templates (sid = -2)
+  - Intelligent template versioning
+  - Handles both template-set-specific and global templates
+  - Auto-detects template type and saves to appropriate location
 
-* Download themes (`.css`) and templates (`.html`) files from database to disk.
+### Style Management
+* Advanced CSS Handling
+  - Clean organization (`styles/<theme_name>/`)
+  - Real-time cache refresh on save
+  - Automatic stylesheet creation/updates
+  - Built-in error recovery for cache operations
+  - Theme-specific stylesheet management
 
-* Save themes and templates to database when saved on disk.
+### Development Workflow
+* Git Integration
+  - Automated deployment via GitHub Actions
+  - Intelligent file change detection
+  - Maintains directory structure during deployment
+  - Branch-aware updates (supports development branches)
+  - Automatic backup creation
 
-* Automatically refresh templates cache files on save.
+### Cache System
+* Smart Caching
+  - Two-stage cache refresh system
+  - Fallback mechanisms for failed cache attempts
+  - Theme-specific cache management
+  - Manual cache control via cacheform.php
+  - Detailed cache operation logging
 
-* Using Cacheform.css and git actions you can use this to have a CI/CD workflow for MyBB Development.
+## Installation
 
-## How to use
+### Required Files
+1. Extension Files (VSCode)
+   - Main extension package
+   - Configuration templates
+   - Utility scripts
+
+2. Server Files
+   - `cacheform.php`: Cache management interface
+   - `cachecss.php`: CSS cache handler
+   - `update_mybb.php`: Handles uppdating styles and templates with github actions.  CI/CD Available upon request
 
 ### Configuration
-
-To operate, MyBBBridge *needs* a `.vscode/mbbb.json` file at your workspace root.
-
-You can create one using the command `MyBBBridge: Create config file`.
-
-The default config file looks like this:
-
+Create `.vscode/mbbb.json`:
 ```json
 {
     "database": {
@@ -72,7 +99,6 @@ set `mybbUrl` to `null` in your `mbbb.json` config file.
   of a given style to the `./styles/<style_name>/` folder.
   *Overrides existing files without confirmation!*
 
-MYBB THEME NAMES MAY CONTAIN NO SPACES, YOU MUST REPLACE THEM WITH - RENAME TEMPLATE SETS Theme-Name-Templates
 ## Release Notes
 
 ### 0.0.1-alpha
@@ -86,3 +112,11 @@ Alpha release with save features.
 ### 0.0.3-alpha
 
 Alpha release allowing to refresh MyBB stylesheet cache files.
+
+### 0.0.4-alpha
+
+Alpha release improving existing cache functionalities, and allowing a a CI/CD workflow with one additional script - not included in repo.
+
+### 1.0 - Pre-Release
+
+Sorted all templates into folders by prefix name, we adjusted the saving functionality so it will be able to read the new folder structure.  Added global templates.
