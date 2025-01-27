@@ -1,55 +1,67 @@
 # MyBBBridge
 
-A comprehensive VSCode extension for MyBB theme and template development, featuring Git integration and automated cache management. Originally created by Leminaw, extensively enhanced with modern development workflows.
+A professional-grade VSCode extension for MyBB theme development with advanced template management, live cache refresh, and CI/CD integration. Built for modern MyBB development workflows.
 
-## Key Features
+## Core Features
 
-### Template Management
-* Smart Template Organization
-  - Auto-sorts templates into prefix-based folders (`template_sets/<set_name>/<prefix>/`)
-  - Full support for global templates (sid = -2)
-  - Intelligent template versioning
-  - Handles both template-set-specific and global templates
-  - Auto-detects template type and saves to appropriate location
+### Intelligent Template Management
+* **Smart Organization**
+  - Automatically categorizes templates by their functional groups
+  - Maintains MyBB's native group structure (Calendar, Forum Display, etc.)
+  - Special handling for global templates (sid = -2)
+  - Preserves template versioning
 
-### Style Management
-* Advanced CSS Handling
-  - Clean organization (`styles/<theme_name>/`)
-  - Real-time cache refresh on save
-  - Automatic stylesheet creation/updates
-  - Built-in error recovery for cache operations
-  - Theme-specific stylesheet management
+* **Group-Based Template Structure**
+  - `/template_sets/<set_name>/<group_name>/`
+  - Automatic sorting into proper categories:
+    - Forum Display
+    - Navigation
+    - User Control Panel
+    - Global Templates
+    - And all standard MyBB template groups
+  - "Ungrouped" folder for miscellaneous templates
+
+### Advanced Style Management
+* **Theme-Specific Organization**
+  - Clean structure: `/styles/<theme_name>/`
+  - Automatic cache refresh on save
+  - Theme-aware file handling
+  - Smart stylesheet detection
+
+* **Cache Management**
+  - Real-time cache updates
+  - Automatic recovery from cache failures
+  - Theme-specific cache handling
+  - Support for both local and production environments
 
 ### Development Workflow
-* Git Integration
-  - Automated deployment via GitHub Actions
-  - Intelligent file change detection
-  - Maintains directory structure during deployment
-  - Branch-aware updates (supports development branches)
-  - Automatic backup creation
+* **Git Integration**
+  - Full CI/CD pipeline support
+  - Automated template/style deployment
+  - Branch-aware updates
+  - Production safeguards
+  - Backup system
 
-### Cache System
-* Smart Caching
-  - Two-stage cache refresh system
-  - Fallback mechanisms for failed cache attempts
-  - Theme-specific cache management
-  - Manual cache control via cacheform.php
-  - Detailed cache operation logging
+* **Workspace Features**
+  - Live template/style updates
+  - Automatic database synchronization
+  - Error recovery
+  - Detailed logging
 
-## Installation
+## Setup Guide
 
-### Required Files
-1. Extension Files (VSCode)
-   - Main extension package
-   - Configuration templates
-   - Utility scripts
+### 1. Extension Installation
+1. Install via VSCode Marketplace
+2. Create workspace configuration
+3. Configure database connection
 
-2. Server Files
-   - `cacheform.php`: Cache management interface
-   - `cachecss.php`: CSS cache handler
-   - `update_mybb.php`: Handles uppdating styles and templates with github actions.  CI/CD Available upon request
+### 2. Server Configuration
+Required PHP Files:
+- `cachecss.php`: Cache management system
+- `cacheform.php`: Manual cache control interface
+- `update_mybb.php`: CI/CD deployment handler
 
-### Configuration
+### 3. Configuration File
 Create `.vscode/mbbb.json`:
 ```json
 {
