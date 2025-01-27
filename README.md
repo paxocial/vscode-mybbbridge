@@ -132,3 +132,11 @@ Alpha release improving existing cache functionalities, and allowing a a CI/CD w
 ### 1.0 - Pre-Release
 
 Sorted all templates into folders by prefix name, we adjusted the saving functionality so it will be able to read the new folder structure.  Added global templates.
+
+### 0.0.4-alpha
+
+Alpha release improving existing cache functionalities, and allowing a a CI/CD workflow with one additional script - not included in repo.
+
+### 1.0 - Pre-Release
+
+Sorted all templates into folders by prefix name, we adjusted the saving functionality so it will be able to read the new folder structure.  Added global templates.

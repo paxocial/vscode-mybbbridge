@@ -1,4 +1,22 @@
 <?php
+define('IN_MYBB', 1);
+require_once "./global.php";
+
+// Add token validation
+$validToken = "lsI6KAZ9Ppf!9Ax#hg1ysoMcwB2";
+
+// Check for either admin access or valid token
+if ($mybb->usergroup['cancp'] != 1 && (!isset($_POST['token']) || $_POST['token'] !== $validToken)) {
+    header('Content-Type: application/json');
+    http_response_code(403);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Unauthorized. Invalid token or insufficient permissions.'
+    ]);
+    error_log("[cacheform.php] Unauthorized access attempt");
+    exit;
+}
+
 /**
  * cacheform.php
  * ----------------
@@ -74,6 +92,7 @@ if (isset($_GET['action'])) {
         exit;
     } elseif ($action == 'clear_cache') {
         header('Content-Type: application/json');
+        // Remove the admin check since we've already validated above
         $tid = intval($_POST['tid'] ?? 0);
         $stylesheets = $_POST['stylesheets'] ?? [];
 
