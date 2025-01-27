@@ -47,7 +47,7 @@ A comprehensive VSCode extension for MyBB theme and template development, featur
 2. Server Files
    - `cacheform.php`: Cache management interface
    - `cachecss.php`: CSS cache handler
-   - `update_mybb.php`: Handles uppdating styles and templates with github actions.  CI/CD
+   - `update_mybb.php`: Handles uppdating styles and templates with github actions.  CI/CD Available upon request
 
 ### Configuration
 Create `.vscode/mbbb.json`:
