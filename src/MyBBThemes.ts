@@ -120,15 +120,29 @@ abstract class MyBBSet {
 
     public async saveElement(fileName: string, content: string, version: string): Promise<void> {
         const table = this.getTable('templates');
+        // First try to update in the specific template set
         const query = `UPDATE ${table} SET template = ?, version = ? WHERE title = ? AND sid = (SELECT sid FROM ${this.getTable('templatesets')} WHERE title = ?)`;
+        
         try {
-            logToPHP(`Attempting to save template: ${fileName} with version ${version}`);
+            logToPHP(`Attempting to save template: ${fileName} with version ${version} in set ${this.name}`);
             await this.query(query, [content, version, fileName, this.name]);
-            vscode.window.showInformationMessage(`Template "${fileName}" saved successfully.`);
-            logToPHP(`Template "${fileName}" saved successfully.`);
+            vscode.window.showInformationMessage(`Template "${fileName}" saved successfully in set ${this.name}.`);
+            logToPHP(`Template "${fileName}" saved successfully in set ${this.name}.`);
         } catch (err) {
-            vscode.window.showErrorMessage(`Failed to save template "${fileName}": ${err instanceof Error ? err.message : String(err)}`);
-            logToPHP(`Failed to save template "${fileName}": ${err instanceof Error ? err.message : String(err)}`);
+            // If the first attempt fails, try updating the global template
+            logToPHP(`Failed to save in specific set, trying global template (sid = -2)`);
+            const globalQuery = `UPDATE ${table} SET template = ?, version = ? WHERE title = ? AND sid = -2`;
+            
+            try {
+                await this.query(globalQuery, [content, version, fileName]);
+                vscode.window.showInformationMessage(`Template "${fileName}" saved successfully as global template.`);
+                logToPHP(`Template "${fileName}" saved successfully as global template.`);
+            } catch (globalErr) {
+                const errorMessage = `Failed to save template "${fileName}" in both set and global: ${globalErr instanceof Error ? globalErr.message : String(globalErr)}`;
+                vscode.window.showErrorMessage(errorMessage);
+                logToPHP(errorMessage);
+                throw globalErr;
+            }
         }
     }
 }
