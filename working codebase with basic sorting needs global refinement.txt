@@ -1,0 +1,1131 @@
+events.ts
+// events.ts
+
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { getConfig, getConnexion, getWorkspacePath } from './utils';
+import { MyBBTemplateSet, MyBBStyle, logErrorToFile, logToPHP } from './MyBBThemes';
+
+/**
+ * Event handler for saving text documents. Automatically uploads templates and styles if configured.
+ * @param document The text document that was saved.
+ */
+export async function onSaveEvent(document: vscode.TextDocument) {
+    const config = await getConfig();
+
+    if (config.autoUpload) {
+        const docPath = document.uri.fsPath;
+        const workspacePath = getWorkspacePath();
+        const relativePath = path.relative(workspacePath, docPath);
+        const pathParts = relativePath.split(path.sep);
+
+        try {
+            const con = await getConnexion(config.database);
+            const ext = path.extname(docPath);
+            
+            // Handle templates in template_sets/{templateset}/{group}/{template}.html
+            if (pathParts[0] === 'template_sets' && ext === '.html') {
+                if (pathParts.length < 4) {
+                    vscode.window.showErrorMessage("Template path is incomplete. Expected format: template_sets/{templateset}/{group}/{template}.html");
+                    return;
+                }
+
+                const templateSetName = pathParts[1]; // Get template set name from path
+                const groupName = pathParts[2]; // Get group name based on folder structure
+                const fileName = path.basename(docPath, ext);
+                
+                if (templateSetName && groupName) {
+                    const templateSet = new MyBBTemplateSet(templateSetName, con, config.database.prefix);
+                    await templateSet.saveElement(fileName, document.getText(), config.mybbVersion);
+                    await logToPHP(`Updated template "${fileName}" in set "${templateSetName}" within group "${groupName}"`);
+                }
+            }
+            // Handle styles in styles/{theme}/{stylesheet}.css
+            else if (pathParts[0] === 'styles' && ext === '.css') {
+                if (pathParts.length < 3) {
+                    vscode.window.showErrorMessage("Style path is incomplete. Expected format: styles/{theme}/{stylesheet}.css");
+                    return;
+                }
+
+                const themeName = pathParts[1];
+                const fileName = path.basename(docPath);
+                
+                if (themeName) {
+                    const style = new MyBBStyle(themeName, con, config.database.prefix);
+                    await style.saveElement(fileName, document.getText(), themeName);
+                    await logToPHP(`Updated stylesheet "${fileName}" for theme "${themeName}"`);
+                }
+            }
+        } catch (error) {
+            if (error instanceof Error) {
+                await logErrorToFile(error);
+                vscode.window.showErrorMessage(`Failed to handle save event: ${error.message}`);
+            } else {
+                const unknownError = new Error("Unknown error occurred while handling save event.");
+                await logErrorToFile(unknownError);
+                vscode.window.showErrorMessage(unknownError.message);
+            }
+        }
+    }
+}
+
+extension.ts
+// extension.ts
+
+import * as vscode from 'vscode';
+import { loadTemplateSetCommand, loadStyleCommand } from "./loadCommands";
+import { createConfigCommand } from "./utilCommands";
+import { onSaveEvent } from "./events";
+import { logToPHP, logErrorToFile, logToFile } from './MyBBThemes';  // Adjust path as necessary
+
+let outputChannel: vscode.OutputChannel;
+
+/**
+ * Activates the MyBBBridge extension, registering commands and setting up logging.
+ * @param context The extension context.
+ */
+export async function activate(context: vscode.ExtensionContext) {
+    console.log("Activating MyBBBridge extension");  // Debugging log
+
+    // Initialize Output Channel
+    outputChannel = vscode.window.createOutputChannel('MyBBBridge Logs');
+    context.subscriptions.push(outputChannel);
+
+    // Override logging functions to write to Output Channel
+    const originalLogToPHP = logToPHP;
+    (logToPHP as any) = async function(message: string) {
+        const timestampStr = new Date().toISOString();
+        outputChannel.appendLine(`[${timestampStr}] LOG: ${message}`);
+        await originalLogToPHP(message);
+    };
+
+    const originalLogErrorToFile = logErrorToFile;
+    (logErrorToFile as any) = async function(error: Error) {
+        const timestampStr = new Date().toISOString();
+        outputChannel.appendLine(`[${timestampStr}] ERROR: ${error.message}`);
+        await originalLogErrorToFile(error);
+    };
+
+    const originalLogToFile = logToFile;
+    (logToFile as any) = async function(message: string) {
+        const timestampStr = new Date().toISOString();
+        outputChannel.appendLine(`[${timestampStr}] ${message}`);
+        await originalLogToFile(message);
+    };
+
+    // Register Commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.loadTemplateSet', loadTemplateSetCommand)
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.loadStyle', loadStyleCommand)
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('extension.createConfig', createConfigCommand)
+    );
+
+    // Register Save Event Handler
+    context.subscriptions.push(
+        vscode.workspace.onDidSaveTextDocument(onSaveEvent)
+    );
+
+    // Register the test logging command
+    context.subscriptions.push(
+        vscode.commands.registerCommand('mybbbridge.logSampleMessage', () => {
+            console.log("mybbbridge.logSampleMessage command executed");  // Debugging log
+            // Call logToPHP with a sample message
+            logToPHP("This is a test message from the VS Code extension.")
+                .then(() => {
+                    console.log("logToPHP succeeded");  // Debugging log
+                    vscode.window.showInformationMessage("Sample log message sent to PHP!");
+                })
+                .catch((err: unknown) => {
+                    console.log("logToPHP failed");  // Debugging log
+                    if (err instanceof Error) {
+                        vscode.window.showErrorMessage(`Failed to send log: ${err.message}`);
+                    } else {
+                        vscode.window.showErrorMessage("Failed to send log: Unknown error occurred.");
+                    }
+                });
+        })
+    );
+}
+
+/**
+ * Deactivates the MyBBBridge extension, disposing of the Output Channel.
+ */
+export function deactivate() {
+    console.log("Deactivating MyBBBridge extension");  // Debugging log
+    if (outputChannel) {
+        outputChannel.dispose();
+    }
+}
+
+loadCommands.ts
+// loadCommands.ts
+
+import * as vscode from 'vscode';
+import { promises as fs } from 'fs';
+import path = require('path');
+
+import { MyBBTemplateSet, MyBBStyle, logErrorToFile } from "./MyBBThemes";  // Import logErrorToFile
+import { Template } from './TemplateGroupManager';
+import { getWorkspacePath, makePath, getConfig, getConnexion } from './utils';
+import { TemplateGroupManager } from './TemplateGroupManager';
+
+/**
+ * Command to load a template set from the MyBB database into the workspace.
+ */
+export async function loadTemplateSetCommand() {
+    const config = await getConfig();
+    const con = await getConnexion(config.database);
+
+    const templateSetName = await vscode.window.showInputBox({ 
+        placeHolder: 'Template set name (e.g. "Default Templates")',
+        validateInput: (value) => {
+            if (!value) {
+                return 'Template set name cannot be empty';
+            }
+            // Allow any non-empty string, including spaces
+            return null;
+        }
+    });
+    if (templateSetName === undefined) {
+        return;
+    }
+    const templateSet = new MyBBTemplateSet(templateSetName, con, config.database.prefix);
+
+    const templateSetPath = path.join(getWorkspacePath(), 'template_sets', templateSet.name);
+    await makePath(templateSetPath);
+
+    try {
+        const templates = await templateSet.getElements();
+        const groupedTemplates = new Map<string, Template[]>();
+
+        // Group templates by their group name
+        for (const template of templates) {
+            const groupName = template.group_name || 'Misc Templates'; // Ensure group name is set
+            if (!groupedTemplates.has(groupName)) {
+                groupedTemplates.set(groupName, []);
+            }
+            const group = groupedTemplates.get(groupName);
+            if (group) {
+                group.push(template);
+            }
+        }
+
+        // Create directories and save files
+        for (const [groupName, groupTemplates] of groupedTemplates) {
+            const groupPath = path.join(templateSetPath, groupName);
+            await makePath(groupPath);
+
+            for (const template of groupTemplates) {
+                if (template.title && template.template) {
+                    const templatePath = path.join(groupPath, `${template.title}.html`);
+                    await fs.writeFile(templatePath, template.template, 'utf8');
+                }
+            }
+        }
+
+        vscode.window.showInformationMessage(`${templates.length} templates were loaded and organized.`);
+    } catch (error) {
+        if (error instanceof Error) {
+            await logErrorToFile(error);
+            vscode.window.showErrorMessage(`Failed to load templates: ${error.message}`);
+        } else {
+            const unknownError = new Error("Unknown error occurred while loading templates.");
+            await logErrorToFile(unknownError);
+            vscode.window.showErrorMessage(unknownError.message);
+        }
+    }
+}
+
+/**
+ * Command to load a style from the MyBB database into the workspace.
+ */
+export async function loadStyleCommand() {
+    const config = await getConfig();
+    const con = await getConnexion(config.database);
+
+    const styleName = await vscode.window.showInputBox({ 
+        placeHolder: 'Style name (e.g. "My Custom Style")',
+        validateInput: (value) => {
+            if (!value) {
+                return 'Style name cannot be empty';
+            }
+            // Allow any non-empty string, including spaces
+            return null;
+        }
+    });
+    if (styleName === undefined) {
+        return;
+    }
+    const style = new MyBBStyle(styleName, con, config.database.prefix);
+
+    const stylePath = path.join(getWorkspacePath(), 'styles', style.name);
+    await makePath(stylePath);
+
+    try {
+        const stylesheets = await style.getElements();
+        const stylePromises = stylesheets.map(async (stylesheet: any) => {
+            let stylesheetPath = path.join(stylePath, stylesheet.name);
+            await fs.writeFile(stylesheetPath, stylesheet.stylesheet, 'utf8');
+        });
+        await Promise.all(stylePromises);
+        vscode.window.showInformationMessage(`${stylesheets.length} stylesheets were loaded.`);
+    } catch (error) {
+        if (error instanceof Error) {
+            await logErrorToFile(error);
+            vscode.window.showErrorMessage(`Failed to load stylesheets: ${error.message}`);
+        } else {
+            const unknownError = new Error("Unknown error occurred while loading stylesheets.");
+            await logErrorToFile(unknownError);
+            vscode.window.showErrorMessage(unknownError.message);
+        }
+    }
+}
+
+MyBBThemes.ts
+// MyBBThemes.ts
+
+import * as vscode from 'vscode';
+import * as mysql from 'mysql2';
+import * as request from 'request-promise-native';
+import * as fs from 'fs';
+import * as path from 'path';
+
+import { timestamp, urlJoin, getConfig, getConnexion, getWorkspacePath } from './utils';
+import { TemplateGroupManager, TemplateGroup, Template } from './TemplateGroupManager';
+
+/**
+ * Logs error messages to the configured log file.
+ * @param error The error to log.
+ */
+export async function logErrorToFile(error: Error) {  // Export the function
+    console.log("logErrorToFile called");  // Debugging log
+    const config = await getConfig();
+    const logFilePath = config.logFilePath || path.join(getWorkspacePath(), 'mybbbridge_extension.log');
+    const timestampStr = new Date().toISOString();
+    const logDir = path.dirname(logFilePath);
+    if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+    }
+    fs.appendFileSync(logFilePath, `[${timestampStr}] ERROR: ${error.message}\n`, 'utf8');
+}
+
+/**
+ * Logs informational messages to the configured log file.
+ * @param message The message to log.
+ */
+export async function logToFile(message: string) {
+    console.log("logToFile called");  // Debugging log
+    const config = await getConfig();
+    const logFilePath = config.logFilePath || path.join(getWorkspacePath(), 'mybbbridge_extension.log');
+    const timestampStr = new Date().toISOString();
+    try {
+        const logDir = path.dirname(logFilePath);
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+        fs.appendFileSync(logFilePath, `[${timestampStr}] ${message}\n`, 'utf8');
+    } catch (error) {
+        if (error instanceof Error) {
+            logErrorToFile(error);
+        } else {
+            console.error(`Failed to write to log file: ${String(error)}`);
+        }
+    }
+}
+
+/**
+ * Sends log messages to a PHP endpoint (`log.php`) on the MyBB server.
+ * Optionally includes a token for authentication.
+ * @param message The message to send.
+ */
+export async function logToPHP(message: string) {
+    console.log("logToPHP called"); // Console log for VS Code output
+    const config = await getConfig();
+    if (config.mybbUrl) {
+        const logUrl = urlJoin([config.mybbUrl, 'log.php']);
+        const token = config.token;  // Optional token
+        try {
+            const form: any = { message };
+            if (token) {
+                form.token = token;
+            }
+            const response = await request.post({
+                uri: logUrl,
+                form: form
+            });
+            await logToFile(`Logged to PHP: ${message}`);
+        } catch (error) {
+            if (error instanceof Error) {
+                logErrorToFile(error);
+            } else {
+                console.error(`Failed to log to PHP: ${String(error)}`);
+            }
+        }
+    }
+}
+
+/**
+ * Abstract class representing a generic MyBB set (template set or style).
+ */
+abstract class MyBBSet {
+    name: string;
+    con: mysql.Connection;
+    prefix: string;
+
+    public constructor(name: string, con: mysql.Connection, prefix: string = 'mybb_') {
+        this.name = name;
+        this.con = con;
+        this.prefix = prefix;
+        console.log(`Initialized MyBBSet for ${name} with prefix ${prefix}`);
+        logToPHP(`Initialized MyBBSet for ${name} with prefix ${prefix}`);
+    }
+
+    /**
+     * Retrieves the full table name with prefix.
+     * @param name The base table name.
+     * @returns The prefixed table name.
+     */
+    public getTable(name: string): string {
+        return this.prefix + name;
+    }
+
+    /**
+     * Checks if the current database connection is closed.
+     * @returns A promise that resolves to `true` if closed, `false` otherwise.
+     */
+    private async isConnectionClosed(): Promise<boolean> {
+        return new Promise((resolve) => {
+            this.con.ping((err) => {
+                resolve(!!err);
+            });
+        });
+    }
+
+    /**
+     * Executes a database query with retry logic and logging.
+     * @param req The SQL query string.
+     * @param params The parameters for the SQL query.
+     * @param callback Optional callback function.
+     * @returns A promise that resolves with the query result.
+     */
+    public async query(req: string, params: any[], callback: any = () => { }): Promise<any> {
+        logToPHP(`Query method called with request: ${req} and params: ${JSON.stringify(params)}`);
+        return new Promise(async (resolve, reject) => {
+            const config = await getConfig();
+
+            if (await this.isConnectionClosed()) {
+                logToPHP("Reconnecting to database...");
+                this.con = await getConnexion(config.database);
+                vscode.window.showInformationMessage("Database connection re-established.");
+            }
+
+            try {
+                this.con.query(req, params, (err: any, result: any) => {
+                    if (err) {
+                        vscode.window.showErrorMessage("Database error: " + err.message);
+                        logToPHP(`Database error occurred: ${err.message}`);
+                        return reject(err);
+                    }
+
+                    // Only check affectedRows for UPDATE/INSERT/DELETE queries
+                    if (req.trim().toLowerCase().startsWith('update') ||
+                        req.trim().toLowerCase().startsWith('insert') ||
+                        req.trim().toLowerCase().startsWith('delete')) {
+                        if (result.affectedRows === 0) {
+                            const noRowsMsg = "No rows affected by the query - update may have failed.";
+                            vscode.window.showErrorMessage(noRowsMsg);
+                            logToPHP(noRowsMsg);
+                            return reject(new Error(noRowsMsg));
+                        }
+                    }
+
+                    logToPHP(`Query executed successfully with result: ${JSON.stringify(result)}`);
+                    callback(err, result);
+                    resolve(result);
+                });
+            } catch (error) {
+                logToPHP(`Query execution caught an error: ${error instanceof Error ? error.message : String(error)}`);
+                reject(error);
+            }
+        });
+    }
+
+    /**
+     * Saves a template element. To be implemented by subclasses.
+     * @param fileName The name of the template file.
+     * @param content The content of the template.
+     * @param version The version of the template.
+     */
+    public abstract saveElement(fileName: string, content: string, version: string): Promise<void>;
+}
+
+/**
+ * Class representing a MyBB Template Set.
+ */
+export class MyBBTemplateSet extends MyBBSet {
+    /**
+     * Retrieves all templates within the set, categorized by groups.
+     * @returns A promise that resolves to an array of templates.
+     */
+    public async getElements(): Promise<Template[]> {
+        return await TemplateGroupManager.getTemplatesWithGroups(this.con, this.prefix, this.name);
+    }
+
+    /**
+     * Saves a template, handling inherited templates by updating their `sid`.
+     * @param fileName The name of the template file.
+     * @param content The content of the template.
+     * @param version The version of the template.
+     */
+    public async saveElement(fileName: string, content: string, version: string): Promise<void> {
+        const table = this.getTable('templates');
+
+        try {
+            // Get the template set's sid
+            const sidQuery = `SELECT sid FROM ${this.getTable('templatesets')} WHERE title = ?`;
+            const sidResult = await this.query(sidQuery, [this.name]);
+
+            if (!sidResult || sidResult.length === 0) {
+                throw new Error(`Template set "${this.name}" not found`);
+            }
+
+            const sid = sidResult[0].sid;
+
+            // Check if the template exists in the specific set
+            const checkQuery = `SELECT tid, sid FROM ${table} WHERE title = ? AND sid = ?`;
+            const existingTemplate = await this.query(checkQuery, [fileName, sid]);
+
+            if (existingTemplate && existingTemplate.length > 0) {
+                // Update existing theme-specific template
+                const updateQuery = `UPDATE ${table} SET template = ?, version = ?, dateline = ? WHERE tid = ?`;
+                await this.query(updateQuery, [content, version, timestamp(), existingTemplate[0].tid]);
+                vscode.window.showInformationMessage(`Updated template "${fileName}" in set "${this.name}".`);
+                await logToPHP(`Template "${fileName}" updated in set "${this.name}".`);
+            } else {
+                // Check if the template exists globally (sid = -2) and has 'global_' prefix
+                const globalCheckQuery = `SELECT tid FROM ${table} WHERE title = ? AND sid = -2 AND title LIKE 'global\\_%'`;
+                const globalTemplate = await this.query(globalCheckQuery, [fileName]);
+
+                if (globalTemplate && globalTemplate.length > 0) {
+                    // Update the global template and change its sid to theme's sid
+                    const updateGlobalQuery = `UPDATE ${table} SET template = ?, version = ?, sid = ?, dateline = ? WHERE tid = ?`;
+                    await this.query(updateGlobalQuery, [content, version, sid, timestamp(), globalTemplate[0].tid]);
+                    vscode.window.showInformationMessage(`Modified inherited template "${fileName}" and updated to theme-specific.`);
+                    await logToPHP(`Inherited template "${fileName}" modified and set to theme-specific in set "${this.name}".`);
+                } else {
+                    // Check if it's a non-global inherited template
+                    const nonGlobalCheckQuery = `SELECT tid FROM ${table} WHERE title = ? AND sid = -2`;
+                    const nonGlobalTemplate = await this.query(nonGlobalCheckQuery, [fileName]);
+
+                    if (nonGlobalTemplate && nonGlobalTemplate.length > 0) {
+                        // Update the inherited template and change its sid to theme's sid
+                        const updateInheritedQuery = `UPDATE ${table} SET template = ?, version = ?, sid = ?, dateline = ? WHERE tid = ?`;
+                        await this.query(updateInheritedQuery, [content, version, sid, timestamp(), nonGlobalTemplate[0].tid]);
+                        vscode.window.showInformationMessage(`Modified inherited template "${fileName}" and updated to theme-specific.`);
+                        await logToPHP(`Inherited template "${fileName}" modified and set to theme-specific in set "${this.name}".`);
+                    } else {
+                        // Create a new theme-specific template
+                        const insertQuery = `INSERT INTO ${table} (title, template, sid, version, dateline) VALUES (?, ?, ?, ?, ?)`;
+                        await this.query(insertQuery, [fileName, content, sid, version, timestamp()]);
+                        vscode.window.showInformationMessage(`Created new template "${fileName}" in set "${this.name}".`);
+                        await logToPHP(`New template "${fileName}" created in set "${this.name}".`);
+                    }
+                }
+            }
+
+        } catch (err) {
+            const errorMessage = `Failed to save template "${fileName}": ${err instanceof Error ? err.message : String(err)}`;
+            vscode.window.showErrorMessage(errorMessage);
+            await logToPHP(errorMessage);
+            throw err;
+        }
+    }
+}
+
+/**
+ * Class representing a MyBB Style.
+ */
+export class MyBBStyle extends MyBBSet {
+    public constructor(name: string, con: mysql.Connection, prefix: string = 'mybb_') {
+        super(name, con, prefix);
+    }
+
+    /**
+     * Retrieves all stylesheets within the style.
+     * @returns A promise that resolves to an array of stylesheets.
+     */
+    public async getElements(): Promise<any[]> {
+        const req = `SELECT name, stylesheet FROM ${this.getTable('themestylesheets')} WHERE tid = (SELECT tid FROM ${this.getTable('themes')} WHERE name = ?)`;
+        await logToPHP(`Loading styles for set: ${this.name}`);
+        const styles = await this.query(req, [this.name]);
+        vscode.window.showInformationMessage(`${styles.length} stylesheets loaded successfully.`);
+        await logToPHP(`${styles.length} stylesheets loaded successfully.`);
+        return styles;
+    }
+
+    /**
+     * Saves a stylesheet, handling creation and updates.
+     * @param fileName The name of the stylesheet file.
+     * @param content The content of the stylesheet.
+     * @param themeName The name of the theme.
+     */
+    public async saveElement(fileName: string, content: string, themeName: string): Promise<void> {
+        try {
+            // First, verify the theme exists and get its ID
+            const themeQuery = `SELECT tid FROM ${this.getTable('themes')} WHERE name = ?`;
+            const themeResult = await this.query(themeQuery, [themeName]);
+
+            if (!themeResult || themeResult.length === 0) {
+                throw new Error(`Theme "${themeName}" not found in database`);
+            }
+
+            const tid = themeResult[0].tid;
+            const table = this.getTable('themestylesheets');
+
+            // Check if the stylesheet exists for this specific theme
+            const checkQuery = `SELECT sid FROM ${table} WHERE tid = ? AND name = ?`;
+            const checkResult = await this.query(checkQuery, [tid, fileName]);
+
+            if (checkResult.length === 0) {
+                // Stylesheet doesn't exist for this theme - create it
+                const insertQuery = `INSERT INTO ${table} 
+                    (tid, name, stylesheet, cachefile, lastmodified) 
+                    VALUES (?, ?, ?, ?, ?)`;
+                await this.query(insertQuery, [
+                    tid,
+                    fileName,
+                    content,
+                    fileName,
+                    timestamp()
+                ]);
+
+                const successMessage = `Created new stylesheet "${fileName}" for theme "${themeName}"`;
+                vscode.window.showInformationMessage(successMessage);
+                await logToPHP(successMessage);
+            } else {
+                // Update existing stylesheet for this specific theme
+                const updateQuery = `UPDATE ${table} 
+                    SET stylesheet = ?, lastmodified = ? 
+                    WHERE tid = ? AND name = ?`;
+
+                await this.query(updateQuery, [content, timestamp(), tid, fileName]);
+
+                const successMessage = `Updated stylesheet "${fileName}" for theme "${themeName}"`;
+                vscode.window.showInformationMessage(successMessage);
+                await logToPHP(successMessage);
+            }
+
+            // Always refresh the cache after update
+            await this.requestCacheRefresh(fileName, themeName);
+
+        } catch (err) {
+            const errorMessage = `Failed to save stylesheet "${fileName}": ${err instanceof Error ? err.message : String(err)}`;
+            vscode.window.showErrorMessage(errorMessage);
+            await logToPHP(errorMessage);
+            throw err;
+        }
+    }
+
+    /**
+     * Requests a cache refresh for the specified stylesheet.
+     * Optionally includes a token for authentication.
+     * @param name The name of the stylesheet.
+     * @param themeName The name of the theme.
+     */
+    public async requestCacheRefresh(name: string, themeName: string): Promise<void> {
+        const config = await getConfig();
+
+        if (!config.mybbUrl) {
+            throw new Error("MyBB URL not configured");
+        }
+
+        const scriptUrl = urlJoin([config.mybbUrl, 'cachecss.php']);
+        await logToPHP(`Requesting cache refresh for ${name} in theme ${themeName}`);
+
+        try {
+            const form: any = {
+                theme_name: themeName,
+                stylesheet: name
+            };
+            const token = config.token;  // Optional token
+            if (token) {
+                form.token = token;
+            }
+
+            const response = await request.post({
+                uri: scriptUrl,
+                form: form,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
+
+            let jsonResponse;
+            try {
+                jsonResponse = JSON.parse(response);
+                await logToFile(`Cache refresh response: ${JSON.stringify(jsonResponse)}`);
+            } catch (parseError) {
+                await logToFile(`Raw response: ${response}`);
+                throw new Error(`Invalid JSON response: ${response}`);
+            }
+
+            if (!jsonResponse.success) {
+                throw new Error(jsonResponse.message || 'Unknown cache refresh error');
+            }
+
+            vscode.window.showInformationMessage(jsonResponse.message);
+            await logToPHP(`Cache refresh successful: ${jsonResponse.message}`);
+
+        } catch (err) {
+            const errorMessage = `Cache refresh failed: ${err instanceof Error ? err.message : String(err)}`;
+            vscode.window.showErrorMessage(errorMessage);
+            await logToPHP(errorMessage);
+            throw err;
+        }
+    }
+}
+
+TemplateGroupManager.ts
+// TemplateGroupManager.ts
+
+import * as mysql from 'mysql2';
+import { logToPHP } from './MyBBThemes';  // Ensure logging is accessible
+
+export interface TemplateGroup {
+    gid: number;
+    prefix: string;
+    title: string;
+    isdefault: number;
+}
+
+export interface Template {
+    tid: number;
+    title: string;
+    template: string;
+    sid: number;
+    version: string;
+    status: string;
+    dateline: number;
+    group_name?: string;
+    group_prefix?: string;
+}
+
+export class TemplateGroupManager {
+    private static templateGroups: Map<string, TemplateGroup> = new Map();
+    private static initialized: boolean = false;
+
+    /**
+     * Categorizes a template based on its prefix.
+     * Only templates with 'global_' prefix are placed in 'Global Templates' folder.
+     * All other templates are sorted based on their respective prefixes.
+     * @param template The template to categorize.
+     * @returns The group name as a string.
+     */
+    public static async categorizeTemplate(template: Template): Promise<string> {
+        // Handle global templates first (sid = -2 and prefix 'global_')
+        if (template.sid === -2 && template.title.startsWith('global_')) {
+            return 'Global Templates';
+        }
+
+        // Get base prefix (everything before first underscore or whole name if no underscore)
+        const basePrefix = this.getTemplatePrefix(template.title);
+        
+        // Check if this is a known group prefix
+        const group = this.templateGroups.get(basePrefix);
+        if (group) {
+            return this.getGroupTitle(group.title);
+        }
+
+        // If not found in groups, try common prefixes
+        return this.getStandardGroupName(template.title);
+    }
+
+    /**
+     * Extracts the prefix from a template title.
+     * @param title The title of the template.
+     * @returns The prefix as a string.
+     */
+    private static getTemplatePrefix(title: string): string {
+        return title.split('_')[0].toLowerCase(); // Extract prefix and normalize
+    }
+
+    /**
+     * Determines the group name for global templates based on their prefix.
+     * @param title The title of the global template.
+     * @returns The group name as a string.
+     */
+    private static getGroupNameForGlobal(title: string): string {
+        // Special handling for global templates
+        const commonGlobals: { [key: string]: string } = {
+            'global_header': 'Global Header Templates',
+            'global_footer': 'Global Footer Templates',
+            'global_error': 'Global Error Templates',
+            'global_modal': 'Global Modal Templates',
+            'global_nav': 'Global Navigation Templates'
+            // Add more as needed
+        };
+
+        return commonGlobals[title] || 'Global Templates';
+    }
+
+    /**
+     * Determines the standard group name based on common template patterns.
+     * @param title The title of the template.
+     * @returns The group name as a string.
+     */
+    private static getStandardGroupName(title: string): string {
+        // Check for common template patterns
+        const patterns = [
+            { match: /^header_/, group: 'Header Templates' },
+            { match: /^footer_/, group: 'Footer Templates' },
+            { match: /^usercp_/, group: 'User CP Templates' },
+            { match: /^modcp_/, group: 'Moderator CP Templates' },
+            { match: /^admin_/, group: 'Admin Templates' },
+            { match: /^forum_/, group: 'Forum Templates' },
+            { match: /^member_/, group: 'Member Templates' },
+            { match: /^post_/, group: 'Posting Templates' },
+            { match: /^poll_/, group: 'Poll Templates' },
+            { match: /^rating_/, group: 'Rating Templates' },
+            { match: /^misc_/, group: 'Misc Templates' }
+        ];
+
+        for (const pattern of patterns) {
+            if (pattern.match.test(title)) {
+                return pattern.group;
+            }
+        }
+
+        // If no match found, group by first prefix
+        const prefix = this.getTemplatePrefix(title);
+        return prefix ? `${prefix.charAt(0).toUpperCase() + prefix.slice(1)} Templates` : 'Misc Templates';
+    }
+
+    /**
+     * Determines the group title from raw group name.
+     * @param rawTitle The raw title of the group.
+     * @returns The formatted group title.
+     */
+    private static getGroupTitle(rawTitle: string): string {
+        if (rawTitle.startsWith('<lang:') && rawTitle.endsWith('>')) {
+            const langKey = rawTitle.slice(6, -1);
+            return this.langMap[langKey] ? `${this.langMap[langKey]} Templates` : 'Misc Templates';
+        }
+        return `${rawTitle} Templates`;
+    }
+
+    /**
+     * Initializes the template groups by fetching them from the database.
+     * @param connection The MySQL connection.
+     * @param prefix The table prefix.
+     */
+    public static async initialize(connection: mysql.Connection, prefix: string): Promise<void> {
+        if (this.initialized) return;
+        
+        // Load template groups in a single query
+        const query = `SELECT * FROM ${prefix}templategroups ORDER BY gid ASC`;
+        
+        try {
+            const [results] = await connection.promise().query<mysql.RowDataPacket[]>(query);
+            results.forEach(row => {
+                this.templateGroups.set(row.prefix, {
+                    gid: row.gid,
+                    prefix: row.prefix,
+                    title: row.title,
+                    isdefault: row.isdefault
+                });
+            });
+            this.initialized = true;
+        } catch (error) {
+            console.error('Failed to initialize template groups:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Retrieves all templates within a set, categorized by groups.
+     * @param connection The MySQL connection.
+     * @param prefix The table prefix.
+     * @param templateSet The name of the template set.
+     * @returns A promise that resolves to an array of templates.
+     */
+    public static async getTemplatesWithGroups(connection: mysql.Connection, prefix: string, templateSet: string): Promise<Template[]> {
+        await this.initialize(connection, prefix);
+
+        // Fetch both global (only 'global_' prefixed) and theme-specific templates
+        const query = `
+            SELECT t.*, ts.title as set_name
+            FROM ${prefix}templates t
+            LEFT JOIN ${prefix}templatesets ts ON t.sid = ts.sid
+            WHERE (t.sid = -2 AND t.title LIKE 'global\\_%') OR ts.title = ?
+            ORDER BY t.title ASC`;
+
+        try {
+            const [results] = await connection.promise().query<mysql.RowDataPacket[]>(query, [templateSet]);
+
+            const templates: Template[] = [];
+
+            for (const row of results) {
+                const template: Template = {
+                    tid: Number(row.tid),
+                    title: String(row.title),
+                    template: String(row.template),
+                    sid: Number(row.sid),
+                    version: String(row.version || ''),
+                    status: String(row.status || ''),
+                    dateline: Number(row.dateline || 0)
+                };
+
+                // Categorize template based on prefix
+                template.group_name = await this.categorizeTemplate(template);
+
+                templates.push(template);
+            }
+
+            return templates;
+        } catch (error) {
+            console.error('Failed to fetch templates:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Mapping of language keys to human-readable group names.
+     */
+    private static langMap: { [key: string]: string } = {
+        'group_calendar': "Calendar",
+        'group_forumdisplay': "Forum Display",
+        'group_index': "Index Page",
+        'group_error': "Error Message",
+        'group_memberlist': "Member List",
+        'group_multipage': "Multipage Pagination",
+        'group_private': "Private Messaging",
+        'group_portal': "Portal",
+        'group_postbit': "Post Bit",
+        'group_posticons': "Post Icon",
+        'group_showthread': "Show Thread",
+        'group_usercp': "User Control Panel",
+        'group_online': "Who's Online",
+        'group_forumbit': "Forum Bit",
+        'group_editpost': "Edit Post",
+        'group_forumjump': "Forum Jump",
+        'group_moderation': "Moderation",
+        'group_nav': "Navigation",
+        'group_search': "Search",
+        'group_showteam': "Show Forum Team",
+        'group_reputation': "Reputation",
+        'group_newthread': "New Thread",
+        'group_newreply': "New Reply",
+        'group_member': "Member",
+        'group_warning': "Warning System",
+        'group_global': "Global",
+        'group_header': "Header",
+        'group_managegroup': "Manage Group",
+        'group_misc': "Miscellaneous",
+        'group_modcp': "Moderator Control Panel",
+        'group_announcement': "Announcement",
+        'group_polls': "Poll",
+        'group_post': "Post",
+        'group_printthread': "Print Thread",
+        'group_report': "Report",
+        'group_smilieinsert': "Smilie Inserter",
+        'group_stats': "Statistics",
+        'group_xmlhttp': "XMLHTTP",
+        'group_footer': "Footer",
+        'group_video': "Video MyCode",
+        'group_sendthread': "Send Thread",
+        'group_mycode': "MyCode"
+    };
+}
+
+utilCommands.ts
+// utilCommands.ts
+
+import * as vscode from 'vscode';
+import { promises as fs, PathLike } from 'fs';
+import path = require('path');
+
+import { getWorkspacePath } from './utils';
+
+/**
+ * Command to create the configuration file (`mbbb.json`) with default settings.
+ */
+export async function createConfigCommand() {
+    // Get current workspace path
+    const workspacePath = getWorkspacePath();
+
+    if (!workspacePath) {
+        vscode.window.showErrorMessage("No workspace is opened.");
+        return;
+    }
+
+    // Get or create .vscode directory
+    let configDirPath = path.join(workspacePath, '.vscode');
+    try {
+        await fs.mkdir(configDirPath, { recursive: true });
+    } catch (err) {
+        vscode.window.showErrorMessage(`Failed to create .vscode directory: ${(err as Error).message}`);
+        return;
+    }
+
+    // Create config file if not already existing
+    const configFilePath = path.join(configDirPath, 'mbbb.json');
+    try {
+        await fs.access(configFilePath);
+        vscode.window.showErrorMessage(`Config file ${configFilePath} already exists!`);
+    } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+            const defaultConf = JSON.stringify({
+                "database": {
+                    "host": "localhost",
+                    "port": 3306,
+                    "database": "mybb",
+                    "prefix": "mybb_",
+                    "user": "root",
+                    "password": ""
+                },
+                "mybbVersion": 1860,
+                "mybbUrl": "http://localhost",
+                "autoUpload": true,
+                "logFilePath": "C:/wamp64/www/mybbbridge/mybbbridge_extension.log",
+                "token": ""
+            }, null, 4);
+
+            try {
+                await fs.writeFile(configFilePath, defaultConf);
+                vscode.window.showInformationMessage(`Config file ${configFilePath} created successfully.`);
+            } catch (writeErr) {
+                vscode.window.showErrorMessage(`Failed to write config file: ${(writeErr as Error).message}`);
+            }
+            return;
+        }
+        vscode.window.showErrorMessage(`Error accessing config file: ${(err as Error).message}`);
+    }
+}
+
+utils.ts
+// utils.ts
+
+import * as vscode from 'vscode';
+import * as mysql from 'mysql2';
+import * as path from 'path';
+import { promises as fs, PathLike } from 'fs';
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000;
+
+/**
+ * Establishes a connection to the MySQL database with retry logic.
+ * @param dbConfig Database configuration object.
+ * @returns A promise that resolves to the MySQL connection.
+ */
+export async function getConnexion(dbConfig: any): Promise<mysql.Connection> {
+    let retries = 0;
+    let connection: mysql.Connection | null = null;
+
+    while (retries < MAX_RETRIES && connection === null) {
+        try {
+            connection = mysql.createConnection({
+                host: dbConfig.host,
+                port: dbConfig.port,
+                database: dbConfig.database,
+                user: dbConfig.user,
+                password: dbConfig.password
+            });
+            await new Promise<void>((resolve, reject) => {
+                connection!.connect((err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+        } catch (error) {
+            retries += 1;
+            console.error(`Connection attempt ${retries} failed. Retrying in ${RETRY_DELAY_MS}ms...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        }
+    }
+
+    if (!connection) {
+        throw new Error('Failed to establish a database connection after several retries.');
+    }
+    return connection;
+}
+
+/**
+ * Retrieves the path of the currently opened workspace.
+ * @returns The workspace path as a string.
+ */
+export function getWorkspacePath(): string {
+    if (vscode.workspace.workspaceFolders) {
+        return vscode.workspace.workspaceFolders[0].uri.fsPath;
+    }
+    vscode.window.showErrorMessage("No workspace opened!");
+    return '';
+}
+
+/**
+ * Reads and parses the configuration file (`mbbb.json`).
+ * @returns A promise that resolves to the configuration object.
+ */
+export async function getConfig(): Promise<any> {
+    const configFilePath = path.join(getWorkspacePath(), '.vscode', 'mbbb.json');
+    try {
+        const configFile = await fs.readFile(configFilePath);
+        const config = JSON.parse(configFile.toString());
+
+        // Ensure required fields are present
+        if (!config.database) {
+            throw new Error("Database configuration is missing in config file.");
+        }
+
+        // Set default for logFilePath if not present
+        if (!config.logFilePath) {
+            config.logFilePath = path.join(getWorkspacePath(), 'mybbbridge_extension.log');
+        }
+
+        return config;
+    } catch (err) {
+        vscode.window.showErrorMessage('Config file not found or invalid. Try using "Create config file" command.');
+        throw err;
+    }
+}
+
+/**
+ * Creates a directory at the specified path if it doesn't already exist.
+ * @param dirPath The directory path to create.
+ */
+export async function makePath(dirPath: PathLike): Promise<void> {
+    try {
+        await fs.mkdir(dirPath, { recursive: true });
+    } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    }
+}
+
+/**
+ * Generates a Unix timestamp.
+ * @returns The current Unix timestamp as a number.
+ */
+export function timestamp(): number {
+    return Math.floor(Date.now() / 1000);
+}
+
+/**
+ * Joins multiple URL parts into a single URL string.
+ * @param urlParts An array of URL segments.
+ * @returns The joined URL string.
+ */
+export function urlJoin(urlParts: string[]): string {
+    return urlParts
+        .map(part => (part.endsWith('/') ? part.slice(0, -1) : part))
+        .join('/');
+}
