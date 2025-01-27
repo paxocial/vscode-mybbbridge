@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path = require('path');
 
 import { MyBBTemplateSet, MyBBStyle, logErrorToFile } from "./MyBBThemes";  // Import logErrorToFile
+import { Template } from './TemplateGroupManager';
 import { getWorkspacePath, makePath, getConfig, getConnexion } from './utils';
 
 export async function loadTemplateSetCommand() {
@@ -29,11 +30,34 @@ export async function loadTemplateSetCommand() {
 
     try {
         const templates = await templateSet.getElements();
-        templates.forEach(async (template: any) => {
-            let templatePath = path.join(templateSetPath, template.title + '.html');
-            await fs.writeFile(templatePath, template.template);
+        const groupedTemplates = new Map<string, Template[]>();
+
+        // Group templates by their group name
+        templates.forEach((template: Template) => {
+            const groupName = template.group_name || 'Ungrouped';
+            if (!groupedTemplates.has(groupName)) {
+                groupedTemplates.set(groupName, []);
+            }
+            const group = groupedTemplates.get(groupName);
+            if (group) {
+                group.push(template);
+            }
         });
-        vscode.window.showInformationMessage(`${templates.length} templates were loaded.`);
+
+        // Create directories and save files
+        for (const [groupName, groupTemplates] of groupedTemplates) {
+            const groupPath = path.join(templateSetPath, groupName);
+            await makePath(groupPath);
+
+            for (const template of groupTemplates) {
+                if (template.title && template.template) {
+                    const templatePath = path.join(groupPath, `${template.title}.html`);
+                    await fs.writeFile(templatePath, template.template);
+                }
+            }
+        }
+
+        vscode.window.showInformationMessage(`${templates.length} templates were loaded and organized.`);
     } catch (error) {
         if (error instanceof Error) {
             logErrorToFile(error);

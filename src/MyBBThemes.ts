@@ -5,6 +5,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { timestamp, urlJoin, getConfig, getConnexion } from './utils';
+import { TemplateGroupManager, TemplateGroup, Template } from './TemplateGroupManager';
+
 const logFilePath = 'C:/wamp64/www/mybb/mybbbridge/mybbbridge_extension.log';
 
 export function logErrorToFile(error: Error) {  // Export the function
@@ -100,14 +102,19 @@ abstract class MyBBSet {
                         return reject(err);
                     }
 
-                    if (result.affectedRows === 0) {
-                        const noRowsMsg = "No rows affected by the query - update may have failed.";
-                        vscode.window.showErrorMessage(noRowsMsg);
-                        logToPHP(noRowsMsg);
-                        return reject(new Error(noRowsMsg));
+                    // Only check affectedRows for UPDATE/INSERT/DELETE queries
+                    if (req.trim().toLowerCase().startsWith('update') || 
+                        req.trim().toLowerCase().startsWith('insert') || 
+                        req.trim().toLowerCase().startsWith('delete')) {
+                        if (result.affectedRows === 0) {
+                            const noRowsMsg = "No rows affected by the query - update may have failed.";
+                            vscode.window.showErrorMessage(noRowsMsg);
+                            logToPHP(noRowsMsg);
+                            return reject(new Error(noRowsMsg));
+                        }
                     }
 
-                    logToPHP(`Query executed successfully with affectedRows: ${result.affectedRows}`);
+                    logToPHP(`Query executed successfully with result: ${JSON.stringify(result)}`);
                     callback(err, result);
                     resolve(result);
                 });
@@ -148,17 +155,37 @@ abstract class MyBBSet {
 }
 
 export class MyBBTemplateSet extends MyBBSet {
+    private templateGroups: Map<string, TemplateGroup> = new Map();
+
     public constructor(name: string, con: mysql.Connection, prefix: string = 'mybb_') {
         super(name, con, prefix);
     }
 
-    public async getElements(): Promise<any[]> {
-        const req = `SELECT title, template FROM ${this.getTable('templates')} WHERE sid = (SELECT sid FROM ${this.getTable('templatesets')} WHERE title = ?)`;
-        logToPHP(`Loading templates for set: ${this.name}`);
+    public async getElements(): Promise<Template[]> {
+        // First, load template groups
+        this.templateGroups = await TemplateGroupManager.getTemplateGroups(this.con, this.prefix);
+
+        // Get templates with their group information
+        const req = `
+            SELECT t.title, t.template, tg.prefix as group_prefix, tg.title as group_title
+            FROM ${this.getTable('templates')} t
+            LEFT JOIN ${this.getTable('templategroups')} tg ON t.title LIKE CONCAT(tg.prefix, '_%')
+            WHERE t.sid = (SELECT sid FROM ${this.getTable('templatesets')} WHERE title = ?)
+            OR t.sid = -2
+            ORDER BY t.title`;
+
         const templates = await this.query(req, [this.name]);
-        vscode.window.showInformationMessage(`${templates.length} templates loaded successfully.`);
-        logToPHP(`${templates.length} templates loaded successfully.`);
-        return templates;
+        return templates.map((template: Template) => ({
+            ...template,
+            group_name: this.getGroupName(template)
+        }));
+    }
+
+    private getGroupName(template: Template): string {
+        if (!template.group_prefix) {
+            return 'Ungrouped';
+        }
+        return TemplateGroupManager.getGroupTitle(template.group_title || '');
     }
 }
 
