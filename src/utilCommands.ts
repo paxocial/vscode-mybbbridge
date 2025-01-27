@@ -1,28 +1,37 @@
+// utilCommands.ts
+
 import * as vscode from 'vscode';
 import { promises as fs, PathLike } from 'fs';
 import path = require('path');
 
 import { getWorkspacePath } from './utils';
 
-
+/**
+ * Command to create the configuration file (`mbbb.json`) with default settings.
+ */
 export async function createConfigCommand() {
     // Get current workspace path
     const workspacePath = getWorkspacePath();
 
-    // Get or create .vscode dir
-    let configFilePath = path.join(workspacePath, '.vscode');
+    if (!workspacePath) {
+        vscode.window.showErrorMessage("No workspace is opened.");
+        return;
+    }
+
+    // Get or create .vscode directory
+    let configDirPath = path.join(workspacePath, '.vscode');
     try {
-        await fs.mkdir(configFilePath);
+        await fs.mkdir(configDirPath, { recursive: true });
     } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') {
-            throw err;
-        }
+        vscode.window.showErrorMessage(`Failed to create .vscode directory: ${(err as Error).message}`);
+        return;
     }
 
     // Create config file if not already existing
-    configFilePath = path.join(configFilePath, 'mbbb.json');
+    const configFilePath = path.join(configDirPath, 'mbbb.json');
     try {
         await fs.access(configFilePath);
+        vscode.window.showErrorMessage(`Config file ${configFilePath} already exists!`);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
             const defaultConf = JSON.stringify({
@@ -36,14 +45,19 @@ export async function createConfigCommand() {
                 },
                 "mybbVersion": 1860,
                 "mybbUrl": "http://localhost",
-                "autoUpload": true
+                "autoUpload": true,
+                "logFilePath": "C:/wamp64/www/mybbbridge/mybbbridge_extension.log",
+                "token": ""
             }, null, 4);
 
-            await fs.writeFile(configFilePath, defaultConf);
-            vscode.window.showInformationMessage(`Config file ${configFilePath} created sucessfully.`);
+            try {
+                await fs.writeFile(configFilePath, defaultConf);
+                vscode.window.showInformationMessage(`Config file ${configFilePath} created successfully.`);
+            } catch (writeErr) {
+                vscode.window.showErrorMessage(`Failed to write config file: ${(writeErr as Error).message}`);
+            }
             return;
         }
-        throw err;
+        vscode.window.showErrorMessage(`Error accessing config file: ${(err as Error).message}`);
     }
-    vscode.window.showErrorMessage(`Config file ${configFilePath} already exists!`);
 }

@@ -1,3 +1,5 @@
+// loadCommands.ts
+
 import * as vscode from 'vscode';
 import { promises as fs } from 'fs';
 import path = require('path');
@@ -5,7 +7,11 @@ import path = require('path');
 import { MyBBTemplateSet, MyBBStyle, logErrorToFile } from "./MyBBThemes";  // Import logErrorToFile
 import { Template } from './TemplateGroupManager';
 import { getWorkspacePath, makePath, getConfig, getConnexion } from './utils';
+import { TemplateGroupManager } from './TemplateGroupManager';
 
+/**
+ * Command to load a template set from the MyBB database into the workspace.
+ */
 export async function loadTemplateSetCommand() {
     const config = await getConfig();
     const con = await getConnexion(config.database);
@@ -33,8 +39,8 @@ export async function loadTemplateSetCommand() {
         const groupedTemplates = new Map<string, Template[]>();
 
         // Group templates by their group name
-        templates.forEach((template: Template) => {
-            const groupName = template.group_name || 'Ungrouped';
+        for (const template of templates) {
+            const groupName = template.group_name || 'Misc Templates'; // Ensure group name is set
             if (!groupedTemplates.has(groupName)) {
                 groupedTemplates.set(groupName, []);
             }
@@ -42,7 +48,7 @@ export async function loadTemplateSetCommand() {
             if (group) {
                 group.push(template);
             }
-        });
+        }
 
         // Create directories and save files
         for (const [groupName, groupTemplates] of groupedTemplates) {
@@ -52,7 +58,7 @@ export async function loadTemplateSetCommand() {
             for (const template of groupTemplates) {
                 if (template.title && template.template) {
                     const templatePath = path.join(groupPath, `${template.title}.html`);
-                    await fs.writeFile(templatePath, template.template);
+                    await fs.writeFile(templatePath, template.template, 'utf8');
                 }
             }
         }
@@ -60,16 +66,19 @@ export async function loadTemplateSetCommand() {
         vscode.window.showInformationMessage(`${templates.length} templates were loaded and organized.`);
     } catch (error) {
         if (error instanceof Error) {
-            logErrorToFile(error);
+            await logErrorToFile(error);
             vscode.window.showErrorMessage(`Failed to load templates: ${error.message}`);
         } else {
             const unknownError = new Error("Unknown error occurred while loading templates.");
-            logErrorToFile(unknownError);
+            await logErrorToFile(unknownError);
             vscode.window.showErrorMessage(unknownError.message);
         }
     }
 }
 
+/**
+ * Command to load a style from the MyBB database into the workspace.
+ */
 export async function loadStyleCommand() {
     const config = await getConfig();
     const con = await getConnexion(config.database);
@@ -94,18 +103,19 @@ export async function loadStyleCommand() {
 
     try {
         const stylesheets = await style.getElements();
-        stylesheets.forEach(async (stylesheet: any) => {
+        const stylePromises = stylesheets.map(async (stylesheet: any) => {
             let stylesheetPath = path.join(stylePath, stylesheet.name);
-            await fs.writeFile(stylesheetPath, stylesheet.stylesheet);
+            await fs.writeFile(stylesheetPath, stylesheet.stylesheet, 'utf8');
         });
+        await Promise.all(stylePromises);
         vscode.window.showInformationMessage(`${stylesheets.length} stylesheets were loaded.`);
     } catch (error) {
         if (error instanceof Error) {
-            logErrorToFile(error);
+            await logErrorToFile(error);
             vscode.window.showErrorMessage(`Failed to load stylesheets: ${error.message}`);
         } else {
             const unknownError = new Error("Unknown error occurred while loading stylesheets.");
-            logErrorToFile(unknownError);
+            await logErrorToFile(unknownError);
             vscode.window.showErrorMessage(unknownError.message);
         }
     }
