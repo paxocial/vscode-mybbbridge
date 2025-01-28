@@ -93,8 +93,7 @@ workspace/
     └── <theme_name>/
         └── [stylesheets]
         
-<blockquote class="imgur-embed-pub" lang="en" data-id="a/tRawFq1"  ><a href="//imgur.com/a/tRawFq1">MyBBBridge v1</a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>
-
+<img src="https://i.imgur.com/MoDFqB9.png"></img>
 ### Version Control
 - Tracks template versions
 - Maintains compatibility with MyBB versions
