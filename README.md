@@ -82,6 +82,7 @@ The extension properly handles MyBB's template inheritance system:
 - Proper SID management for inheritance
 
 ### File Organization
+```
 workspace/
 ├── template_sets/
 │   └── <template_set_name>/
@@ -92,7 +93,7 @@ workspace/
 └── styles/
     └── <theme_name>/
         └── [stylesheets]
-        
+```     
 <img src="https://i.imgur.com/MoDFqB9.png"></img>
 ### Version Control
 - Tracks template versions
