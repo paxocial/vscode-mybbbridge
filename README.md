@@ -1,7 +1,7 @@
 
 # MyBBBridge - Professional MyBB Development Extension for VSCode
 
-A professional-grade VSCode extension designed for MyBB theme and template development, offering advanced template management, intelligent versioning, live cache refresh, and seamless database integration.  Originally developed by LeMiNaW I've been improving it for my specific usecases.  
+A professional-grade VSCode extension designed for MyBB theme and template development, offering advanced template management, intelligent versioning, live cache refresh, and seamless database integration.  Originally developed by LeMiNaW I've been improving it for my specific usecases.  Ensure cacheform.php and cachecss are uploaded to root mybb dir.   Handlers for clearing stylesheet cache on save.
 
 ## Core Features
 
@@ -106,7 +106,7 @@ workspace/
 ### Installation
 
 1. Install via VSCode Marketplace
-2. Create workspace configuration
+2. Upload cache handler files to root mybb dir.
 3. Configure database connection
 
 ### Configuration
