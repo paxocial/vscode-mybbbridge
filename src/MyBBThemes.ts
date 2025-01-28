@@ -207,47 +207,43 @@ export class MyBBTemplateSet extends MyBBSet {
 
             const sid = sidResult[0].sid;
 
-            // Check if the template exists in the specific set
-            const checkQuery = `SELECT tid, sid FROM ${table} WHERE title = ? AND sid = ?`;
-            const existingTemplate = await this.query(checkQuery, [fileName, sid]);
+            // First, check if there's a master template
+            const masterQuery = `SELECT tid, template FROM ${table} WHERE title = ? AND sid = -2`;
+            const masterTemplate = await this.query(masterQuery, [fileName]);
 
-            if (existingTemplate && existingTemplate.length > 0) {
-                // Update existing theme-specific template
-                const updateQuery = `UPDATE ${table} SET template = ?, version = ?, dateline = ? WHERE tid = ?`;
-                await this.query(updateQuery, [content, version, timestamp(), existingTemplate[0].tid]);
-                vscode.window.showInformationMessage(`Updated template "${fileName}" in set "${this.name}".`);
-                await logToPHP(`Template "${fileName}" updated in set "${this.name}".`);
-            } else {
-                // Check if the template exists globally (sid = -2) and has 'global_' prefix
-                const globalCheckQuery = `SELECT tid FROM ${table} WHERE title = ? AND sid = -2 AND title LIKE 'global\\_%'`;
-                const globalTemplate = await this.query(globalCheckQuery, [fileName]);
+            // Then check if we already have a custom version
+            const customQuery = `SELECT tid, template FROM ${table} WHERE title = ? AND sid = ?`;
+            const customTemplate = await this.query(customQuery, [fileName, sid]);
 
-                if (globalTemplate && globalTemplate.length > 0) {
-                    // Update the global template and change its sid to theme's sid
-                    const updateGlobalQuery = `UPDATE ${table} SET template = ?, version = ?, sid = ?, dateline = ? WHERE tid = ?`;
-                    await this.query(updateGlobalQuery, [content, version, sid, timestamp(), globalTemplate[0].tid]);
-                    vscode.window.showInformationMessage(`Modified inherited template "${fileName}" and updated to theme-specific.`);
-                    await logToPHP(`Inherited template "${fileName}" modified and set to theme-specific in set "${this.name}".`);
+            if (masterTemplate && masterTemplate.length > 0) {
+                // We have a master template
+                if (customTemplate && customTemplate.length > 0) {
+                    // Update existing custom template
+                    const updateQuery = `UPDATE ${table} SET template = ?, version = ?, dateline = ? WHERE tid = ?`;
+                    await this.query(updateQuery, [content, version, timestamp(), customTemplate[0].tid]);
+                    vscode.window.showInformationMessage(`Updated modified template "${fileName}"`);
                 } else {
-                    // Check if it's a non-global inherited template
-                    const nonGlobalCheckQuery = `SELECT tid FROM ${table} WHERE title = ? AND sid = -2`;
-                    const nonGlobalTemplate = await this.query(nonGlobalCheckQuery, [fileName]);
-
-                    if (nonGlobalTemplate && nonGlobalTemplate.length > 0) {
-                        // Update the inherited template and change its sid to theme's sid
-                        const updateInheritedQuery = `UPDATE ${table} SET template = ?, version = ?, sid = ?, dateline = ? WHERE tid = ?`;
-                        await this.query(updateInheritedQuery, [content, version, sid, timestamp(), nonGlobalTemplate[0].tid]);
-                        vscode.window.showInformationMessage(`Modified inherited template "${fileName}" and updated to theme-specific.`);
-                        await logToPHP(`Inherited template "${fileName}" modified and set to theme-specific in set "${this.name}".`);
-                    } else {
-                        // Create a new theme-specific template
-                        const insertQuery = `INSERT INTO ${table} (title, template, sid, version, dateline) VALUES (?, ?, ?, ?, ?)`;
-                        await this.query(insertQuery, [fileName, content, sid, version, timestamp()]);
-                        vscode.window.showInformationMessage(`Created new template "${fileName}" in set "${this.name}".`);
-                        await logToPHP(`New template "${fileName}" created in set "${this.name}".`);
-                    }
+                    // Create new custom version of master template
+                    const insertQuery = `INSERT INTO ${table} (title, template, sid, version, dateline) VALUES (?, ?, ?, ?, ?)`;
+                    await this.query(insertQuery, [fileName, content, sid, version, timestamp()]);
+                    vscode.window.showInformationMessage(`Created custom version of template "${fileName}"`);
+                }
+            } else {
+                // No master template exists
+                if (customTemplate && customTemplate.length > 0) {
+                    // Update existing custom template
+                    const updateQuery = `UPDATE ${table} SET template = ?, version = ?, dateline = ? WHERE tid = ?`;
+                    await this.query(updateQuery, [content, version, timestamp(), customTemplate[0].tid]);
+                    vscode.window.showInformationMessage(`Updated custom template "${fileName}"`);
+                } else {
+                    // Create new custom template
+                    const insertQuery = `INSERT INTO ${table} (title, template, sid, version, dateline) VALUES (?, ?, ?, ?, ?)`;
+                    await this.query(insertQuery, [fileName, content, sid, version, timestamp()]);
+                    vscode.window.showInformationMessage(`Created new template "${fileName}"`);
                 }
             }
+
+            await logToPHP(`Template "${fileName}" saved in set "${this.name}"`);
 
         } catch (err) {
             const errorMessage = `Failed to save template "${fileName}": ${err instanceof Error ? err.message : String(err)}`;

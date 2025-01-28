@@ -113,6 +113,15 @@ export class TemplateGroupManager {
     }
 
     /**
+     * Resolves a language string to its human-readable form
+     * @param langKey The language key to resolve
+     * @returns The resolved string or undefined if not found
+     */
+    public static resolveLangString(langKey: string): string | undefined {
+        return this.langMap[langKey];
+    }
+
+    /**
      * Determines the group title from raw group name.
      * @param rawTitle The raw title of the group.
      * @returns The formatted group title.
@@ -120,7 +129,7 @@ export class TemplateGroupManager {
     private static getGroupTitle(rawTitle: string): string {
         if (rawTitle.startsWith('<lang:') && rawTitle.endsWith('>')) {
             const langKey = rawTitle.slice(6, -1);
-            return this.langMap[langKey] ? `${this.langMap[langKey]} Templates` : 'Misc Templates';
+            return this.resolveLangString(langKey) || 'Misc Templates';
         }
         return `${rawTitle} Templates`;
     }
@@ -162,20 +171,20 @@ export class TemplateGroupManager {
      */
     public static async getTemplatesWithGroups(connection: mysql.Connection, prefix: string, templateSet: string): Promise<Template[]> {
         await this.initialize(connection, prefix);
-
-        // Fetch both global (only 'global_' prefixed) and theme-specific templates
+    
+        // Modified query to get both theme-specific and all global templates
         const query = `
             SELECT t.*, ts.title as set_name
             FROM ${prefix}templates t
             LEFT JOIN ${prefix}templatesets ts ON t.sid = ts.sid
-            WHERE (t.sid = -2 AND t.title LIKE 'global\\_%') OR ts.title = ?
+            WHERE t.sid = -2 OR ts.title = ?
             ORDER BY t.title ASC`;
-
+    
         try {
             const [results] = await connection.promise().query<mysql.RowDataPacket[]>(query, [templateSet]);
-
+    
             const templates: Template[] = [];
-
+    
             for (const row of results) {
                 const template: Template = {
                     tid: Number(row.tid),
@@ -186,13 +195,13 @@ export class TemplateGroupManager {
                     status: String(row.status || ''),
                     dateline: Number(row.dateline || 0)
                 };
-
+    
                 // Categorize template based on prefix
                 template.group_name = await this.categorizeTemplate(template);
-
+    
                 templates.push(template);
             }
-
+    
             return templates;
         } catch (error) {
             console.error('Failed to fetch templates:', error);

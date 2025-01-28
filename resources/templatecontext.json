@@ -225,60 +225,6 @@
       ]
     },
     {
-      "group": "OptionsHoshin Budo Main Site Templates Templates",
-      "templates": [
-        "hoshin_aboutfounder",
-        "hoshin_aboutgrandmaster",
-        "hoshin_abouthistory",
-        "hoshin_aboutus",
-        "hoshin_bujinkan",
-        "hoshin_contactus",
-        "hoshin_healing",
-        "hoshin_index",
-        "hoshin_instructor_form",
-        "hoshin_instructors",
-        "hoshin_instructors_form",
-        "hoshin_materials",
-        "hoshin_readinglist",
-        "hoshin_seminars",
-        "hoshin_taochikung",
-        "hoshin_test",
-        "hoshin_testimonials",
-        "hoshin_testing_and_fees",
-        "hoshin_training_ranks"
-      ]
-    },
-    {
-      "group": "OptionsHoshin Budo Plugin Templates Templates",
-      "templates": [
-        "hoshinbudo_admin_dashboard",
-        "hoshinbudo_admin_instructors",
-        "hoshinbudo_admin_logging",
-        "hoshinbudo_admin_settings",
-        "hoshinbudo_instructor_form",
-        "hoshinbudo_instructor_row",
-        "hoshinbudo_instructors",
-        "hoshinbudo_pending_instructors"
-      ]
-    },
-    {
-      "group": "OptionsHoshin Shop Plugin Templates Templates",
-      "templates": [
-        "hoshinshop_admin_panel",
-        "hoshinshop_cart",
-        "hoshinshop_cart_item",
-        "hoshinshop_checkout",
-        "hoshinshop_color_dropdown",
-        "hoshinshop_order_confirmation",
-        "hoshinshop_panel",
-        "hoshinshop_product_detail",
-        "hoshinshop_product_item",
-        "hoshinshop_size_dropdown",
-        "hoshinshop_tab_content",
-        "hoshinshop_tab_header"
-      ]
-    },
-    {
       "group": "Index Page Templates",
       "templates": [
         "index",
@@ -638,7 +584,7 @@
       ]
     },
     {
-      "group": "OptionsMyConversations Templates",
+      "group": "MyConversations Templates",
       "templates": [
         "converse_add_participants",
         "converse_add_participants_disallowed",
@@ -1269,7 +1215,7 @@
       ]
     },
     {
-      "group": "OptionsRT Chat Templates",
+      "group": "RT Chat Templates",
       "templates": [
         "rtchat_chat",
         "rtchat_chat_action_delete",

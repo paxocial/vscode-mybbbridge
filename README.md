@@ -1,67 +1,115 @@
-# MyBBBridge
 
-A professional-grade VSCode extension for MyBB theme development with advanced template management, live cache refresh, and CI/CD integration. Built for modern MyBB development workflows.
+# MyBBBridge - Professional MyBB Development Extension for VSCode
+
+A professional-grade VSCode extension designed for MyBB theme and template development, offering advanced template management, intelligent versioning, live cache refresh, and seamless database integration.  Originally developed by LeMiNaW I've been improving it for my specific usecases.  
 
 ## Core Features
 
-### Intelligent Template Management
-* **Smart Organization**
-  - Automatically categorizes templates by their functional groups
-  - Maintains MyBB's native group structure (Calendar, Forum Display, etc.)
-  - Special handling for global templates (sid = -2)
-  - Preserves template versioning
+### Template Management
 
-* **Group-Based Template Structure**
-  - `/template_sets/<set_name>/<group_name>/`
-  - Automatic sorting into proper categories:
-    - Forum Display
-    - Navigation
-    - User Control Panel
-    - Global Templates
-    - And all standard MyBB template groups
-  - "Ungrouped" folder for miscellaneous templates
+#### Smart Template Organization
+- **Hierarchical Structure**
+  - `/template_sets/<set_name>/<group_name>/template.html`
+  - Automatic categorization based on MyBB's native group system
+  - Intelligent handling of global templates (sid = -2)
+  - Proper inheritance tracking for custom templates
 
-### Advanced Style Management
-* **Theme-Specific Organization**
-  - Clean structure: `/styles/<theme_name>/`
+#### Template Versioning
+- **Version Control**
+  - Automatic version tracking for each template
+  - Maintains MyBB version compatibility information
+  - Proper handling of template inheritance from master templates
+  - Version conflict detection and resolution
+
+#### Template Inheritance
+- **Master Template Integration**
+  - Proper handling of global templates (sid = -2)
+  - Automatic conversion of inherited templates to custom versions
+  - Smart detection of template modifications
+  - Maintains MyBB's template inheritance system
+
+#### Template Groups
+- **Automatic Categorization**
+  - Calendar Templates
+  - Forum Display Templates
+  - User CP Templates
+  - Global Templates
+  - Header/Footer Templates
+  - Navigation Templates
+  - And all standard MyBB template groups
+  - Smart handling of ungrouped templates
+
+### Style Management
+
+#### Theme Organization
+- **Clean Structure**
+  - `/styles/<theme_name>/stylesheet.css`
+  - Automatic theme detection
+  - Smart stylesheet management
+  - Version-aware updates
+
+#### Cache Management
+- **Real-time Updates**
   - Automatic cache refresh on save
-  - Theme-aware file handling
-  - Smart stylesheet detection
-
-* **Cache Management**
-  - Real-time cache updates
-  - Automatic recovery from cache failures
   - Theme-specific cache handling
-  - Support for both local and production environments
+  - Fail-safe cache recovery
+  - Production-safe cache updates
 
-### Development Workflow
-* **Git Integration**
-  - Full CI/CD pipeline support
-  - Automated template/style deployment
-  - Branch-aware updates
-  - Production safeguards
-  - Backup system
+### Database Integration
 
-* **Workspace Features**
-  - Live template/style updates
-  - Automatic database synchronization
-  - Error recovery
-  - Detailed logging
+#### Automatic Synchronization
+- **Real-time Database Updates**
+  - Template modifications are instantly saved
+  - Smart SID management
+  - Proper handling of template inheritance
+  - Version-aware updates
+
+#### Template Set Management
+- **Smart Template Set Handling**
+  - Create and modify template sets
+  - Import existing template sets
+  - Export template sets to database
+  - Proper versioning and inheritance
+
+## Technical Details
+
+### Template Inheritance System
+The extension properly handles MyBB's template inheritance system:
+- Master templates (sid = -2)
+- Global templates
+- Custom templates
+- Modified templates appear green in MyBB ACP
+- Proper SID management for inheritance
+
+### File Organization
+workspace/
+├── template_sets/
+│   └── <template_set_name>/
+│       ├── Calendar Templates/
+│       ├── Forum Display Templates/
+│       ├── Global Templates/
+│       └── [Other Template Groups]/
+└── styles/
+    └── <theme_name>/
+        └── [stylesheets]
+
+
+### Version Control
+- Tracks template versions
+- Maintains compatibility with MyBB versions
+- Smart handling of template modifications
+- Proper inheritance tracking
 
 ## Setup Guide
 
-### 1. Extension Installation
+### Installation
+
 1. Install via VSCode Marketplace
 2. Create workspace configuration
 3. Configure database connection
 
-### 2. Server Configuration
-Required PHP Files:
-- `cachecss.php`: Cache management system
-- `cacheform.php`: Manual cache control interface
-- `update_mybb.php`: CI/CD deployment handler
+### Configuration
 
-### 3. Configuration File
 Create `.vscode/mbbb.json`:
 ```json
 {
@@ -75,68 +123,386 @@ Create `.vscode/mbbb.json`:
     },
     "mybbVersion": 1860,
     "mybbUrl": "http://localhost",
-    "autoUpload": true
+    "autoUpload": true,
+    "logFilePath": "path/to/logs",
+    "token": ""
 }
 ```
 
-* `database`: This one should be quite self explanatory!
-
-* `mybbVersion`: MyBB version to be used in newly created theme files. Existing files
-  will keep their version metadata.
-
-* `mybbUrl`: URL of your MyBB board. Set to `null` or `''` to disable cache refresh
-  requests.
-
-* `autoUpload`: If true, MyBBBridge will try to save theme and stylesheets to database
-  each time a corresponding file is saved in VSCode.
-  *Overrides existing database entries without confirmation!*
-
-### Cache refresh
-
-To be able to ask MyBB for template cache refresh, MyBBBridge requires you to upload
-the tiny `cacheform.php` php file of this repository to your web server, at the root of
-your MyBB directory. If you don't plan to use cache refresh, you can skip this step and
-set `mybbUrl` to `null` in your `mbbb.json` config file.
+#### Configuration Options
+- **database**: Database connection details
+- **mybbVersion**: Target MyBB version for templates
+- **mybbUrl**: MyBB installation URL for cache management
+- **autoUpload**: Enable automatic database updates
+- **logFilePath**: Path for extension logs
+- **token**: Optional authentication token
 
 ### Commands
 
-* `MyBBBridge: Create config file`: Create a new config file, allowing you to start
-  using MyBBBridge.
+#### Template Management
+- `MyBBBridge: Load Template Set`
+  - Downloads complete template set
+  - Organizes into proper groups
+  - Maintains version information
+  - Preserves inheritance data
 
-* `MyBBBridge: Load MyBB template set from database`: Download and save all templates
-  files of a given template set to the `./template_sets/<template_set_name>/` folder.
-  *Overrides existing files without confirmation!*
+#### Style Management
+- `MyBBBridge: Load Style`
+  - Downloads theme stylesheets
+  - Maintains cache information
+  - Preserves theme hierarchy
 
-* `MyBBBridge: Load MyBB style from database`: Download and save all stylesheet files
-  of a given style to the `./styles/<style_name>/` folder.
-  *Overrides existing files without confirmation!*
+#### Configuration
+- `MyBBBridge: Create Config`
+  - Creates configuration file
+  - Sets up default options
+  - Configures database connection
 
-## Release Notes
+### Auto-Save Features
 
-### 0.0.1-alpha
+#### Template Auto-Save
+- Automatic database synchronization
+- Proper version management
+- Inheritance tracking
+- Cache updates
 
-Alpha release providing basic download features.
+#### Style Auto-Save
+- Automatic stylesheet updates
+- Cache refresh
+- Theme-aware updates
 
-### 0.0.2-alpha
+## Special Features
 
-Alpha release with save features.
+### Template Inheritance Management
+- Proper handling of master templates
+- Smart SID management
+- Version-aware modifications
+- Inheritance tracking
 
-### 0.0.3-alpha
+### Cache Management
+- Real-time cache updates
+- Theme-specific handling
+- Fail-safe mechanisms
+- Production safeguards
 
-Alpha release allowing to refresh MyBB stylesheet cache files.
+### Error Handling
+- Detailed error logging
+- Smart error recovery
+- Database connection management
+- Cache failure recovery
 
-### 0.0.4-alpha
+## Best Practices
 
-Alpha release improving existing cache functionalities, and allowing a a CI/CD workflow with one additional script - not included in repo.
+### Template Development
+1. Always use template sets
+2. Maintain proper group structure
+3. Be aware of template inheritance
+4. Monitor version compatibility
 
-### 1.0 - Pre-Release
+### Style Development
+1. Use theme-specific organization
+2. Monitor cache status
+3. Test cache updates
+4. Maintain version compatibility
 
-Sorted all templates into folders by prefix name, we adjusted the saving functionality so it will be able to read the new folder structure.  Added global templates.
+## Requirements
+- VSCode 1.60.0 or higher
+- MyBB 1.8.x
+- PHP 7.4 or higher (for cache management)
+- MySQL 5.7 or higher
 
-### 0.0.4-alpha
+## Known Issues
+- Document any known issues or limitations
 
-Alpha release improving existing cache functionalities, and allowing a a CI/CD workflow with one additional script - not included in repo.
+## Security Considerations
 
-### 1.0 - Pre-Release
+### Configuration Security
+- Never commit your `mbbb.json` with real credentials
+- Use environment variables for sensitive data in production
+- Keep your authentication token private
 
-Sorted all templates into folders by prefix name, we adjusted the saving functionality so it will be able to read the new folder structure.  Added global templates.
+### Best Practices
+1. Always use HTTPS for MyBB URL
+2. Regularly rotate authentication tokens
+3. Use restricted database users with minimal privileges
+4. Keep logs in a secure location outside web root
+
+### Database Access
+Configure a database user with minimal required privileges:
+```sql
+GRANT SELECT, UPDATE ON mybb_templates TO 'mybbbridge'@'localhost';
+GRANT SELECT, UPDATE ON mybb_themes TO 'mybbbridge'@'localhost';
+```
+
+### Production Use
+1. Enable authentication token validation
+2. Configure secure log locations
+3. Use environment-specific configurations
+
+- If you would like to use this extension on a live server, not a localhost (such as wamp), you will need to create a deploy.yml, make your forum a github repo, and create a script to utilize a secure token to make the adjustments in the database.   For security reasons I am encouraging everybody to make their own setup.  You can achieve true CI/CD MyBB development with this extension and some extra work.
+
+
+## Development Guide
+
+### Getting Started with Development
+
+#### Setup Development Environment
+1. Clone the repository
+```bash
+git clone https://github.com/paxocial/vscode-mybbbridge.git
+cd vscode-mybbbridge
+```
+
+2. Open in VSCode
+```bash
+code .
+```
+
+3. Install dependencies
+```bash
+npm install
+```
+
+4. Install required VSCode extensions
+- TypeScript and JavaScript Language Features
+- ESLint
+- Debugger for Chrome (optional, for debugging)
+
+### Project Structure
+```
+vscode-mybbbridge/
+├── src/                     # Source code
+│   ├── events.ts           # Event handlers (save events, etc.)
+│   ├── extension.ts        # Extension entry point
+│   ├── loadCommands.ts     # Template/style loading commands
+│   ├── MyBBThemes.ts       # Core MyBB interaction logic
+│   ├── TemplateGroupManager.ts  # Template organization logic
+│   ├── utilCommands.ts     # Utility commands
+│   └── utils.ts            # Helper functions
+├── resources/              # Static resources
+│   └── templatecontext.json # Template grouping definitions
+├── .vscode/               # VSCode configuration
+└── package.json           # Extension manifest
+```
+
+### Development Workflow
+
+1. **Make Changes**
+   - Modify source files in `src/`
+   - Add new features
+   - Fix bugs
+
+2. **Compile and Test**
+```bash
+# Compile TypeScript
+npm run compile
+
+# Watch for changes during development
+npm run watch
+
+# Run tests
+npm test
+```
+
+3. **Debug the Extension**
+   - Press F5 in VSCode to launch extension development host
+   - Set breakpoints in TypeScript files
+   - Use Debug Console for logging
+   - Check Output panel for extension logs
+
+4. **Package the Extension**
+```bash
+# Create VSIX package
+vsce package
+```
+
+### Key Components
+
+#### Extension Entry Point (extension.ts)
+- Handles extension activation/deactivation
+- Registers commands
+- Sets up event listeners
+- Initializes logging
+
+#### Event Handler (events.ts)
+- Manages file save events
+- Handles template/style updates
+- Triggers cache refresh
+
+#### Template Management (MyBBThemes.ts)
+- Handles database interactions
+- Manages template inheritance
+- Controls versioning
+- Handles cache updates
+
+#### Template Organization (TemplateGroupManager.ts)
+- Manages template grouping
+- Handles template categorization
+- Controls folder structure
+- Manages language strings
+
+### Adding New Features
+
+#### Add New Command
+1. Create command function in appropriate file
+```typescript
+export async function myNewCommand() {
+    // Command implementation
+}
+```
+
+2. Register in extension.ts
+```typescript
+context.subscriptions.push(
+    vscode.commands.registerCommand('extension.myNewCommand', myNewCommand)
+);
+```
+
+3. Add to package.json
+```json
+{
+    "contributes": {
+        "commands": [
+            {
+                "command": "extension.myNewCommand",
+                "title": "MyBBBridge: My New Command"
+            }
+        ]
+    }
+}
+```
+
+#### Add New Template Group
+1. Update templatecontext.json
+```json
+{
+    "group": "My New Group",
+    "templates": [
+        "template_name1",
+        "template_name2"
+    ]
+}
+```
+2. You can create a customize templatecontext.json file by using an AI like chatgpt o1-mini.  Just expand all templates and copy and paste into the AI, ask for a json list just like this one.  
+
+2. Add to TemplateGroupManager.ts langMap if needed (This is only for templates that use a <lang:name> naming structure in the DB, typically only default mybb templates)
+```typescript
+private static langMap: { [key: string]: string } = {
+    'group_mynewgroup': "My New Group",
+    // ... existing mappings
+};
+```
+
+### Testing
+
+#### Run Tests
+```bash
+npm test
+```
+
+#### Add New Tests
+1. Create test file in `test/` directory
+2. Use VSCode's extension testing framework
+```typescript
+suite('My Test Suite', () => {
+    test('My Test Case', async () => {
+        // Test implementation
+    });
+});
+```
+
+### Common Development Tasks
+
+#### Adding Database Support for New Features
+1. Add new methods to MyBBSet class
+2. Implement in MyBBTemplateSet or MyBBStyle
+3. Add error handling
+4. Update types
+
+#### Modifying Template Organization
+1. Update TemplateGroupManager patterns
+2. Modify categorization logic
+3. Update group naming
+4. Test with various templates
+
+#### Adding New Events
+1. Create event handler
+2. Register in extension.ts
+3. Add error handling
+4. Test thoroughly
+
+### Tips and Tricks
+
+1. **Development Speed**
+   - Use `npm run watch` during development
+   - Keep Extension Development Host window open
+   - Use VSCode's Debug Console
+
+2. **Debugging**
+   - Add console.log statements with descriptive prefixes
+   - Use VSCode's breakpoint system
+   - Check Output panel > MyBBBridge channel
+
+3. **Testing Changes**
+   - Test with different MyBB versions
+   - Test with various template sets
+   - Verify template inheritance
+   - Check cache behavior
+
+4. **Common Issues**
+   - Database connection handling
+   - Template inheritance edge cases
+   - Cache refresh timing
+   - File system permissions
+
+### Publishing Updates
+
+1. **Update Version**
+```bash
+npm version patch|minor|major
+```
+
+2. **Package Extension**
+```bash
+vsce package
+```
+
+3. **Test VSIX Package**
+   - Install in fresh VSCode instance
+   - Test all features
+   - Verify documentation
+
+4. **Publish**
+```bash
+vsce publish
+```
+
+### Best Practices
+
+1. **Code Style**
+   - Follow existing patterns
+   - Use TypeScript features
+   - Document complex logic
+   - Add type definitions
+
+2. **Error Handling**
+   - Use try-catch blocks
+   - Provide user feedback
+   - Log errors appropriately
+   - Handle edge cases
+
+3. **Documentation**
+   - Update README.md
+   - Document new features
+   - Update API documentation
+   - Add code comments
+
+4. **Testing**
+   - Write unit tests
+   - Test edge cases
+   - Verify MyBB compatibility
+   - Test different configurations
+
+
+## License
+[License.md]
