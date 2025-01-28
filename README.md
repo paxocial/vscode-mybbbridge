@@ -92,7 +92,8 @@ workspace/
 └── styles/
     └── <theme_name>/
         └── [stylesheets]
-
+        
+<blockquote class="imgur-embed-pub" lang="en" data-id="a/tRawFq1"  ><a href="//imgur.com/a/tRawFq1">MyBBBridge v1</a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>
 
 ### Version Control
 - Tracks template versions
