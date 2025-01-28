@@ -1,7 +1,7 @@
 {
-	"name": "mybbbridge",
-	"displayName": "MyBBBridge",
-	"description": "VSCode extension to edit and create MyBB themes and templates.",
+	"name": "mybbbridgev2",
+	"displayName": "MyBBBridge v2",
+	"description": "VSCode extension to edit and create MyBB themes and templates. Enhanced folder organization within vscode. Caching styles, and uploaded changes to DB on save. ",
 	"version": "1.0.1",
 	"publisher": "TechSurgeon",
 	"repository": {
