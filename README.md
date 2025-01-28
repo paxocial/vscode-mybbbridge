@@ -106,7 +106,7 @@ workspace/
 ### Installation
 
 1. Install via VSCode Marketplace
-2. Create workspace configuration
+2. Upload cache handler files to root mybb dir.
 3. Configure database connection
 
 ### Configuration
